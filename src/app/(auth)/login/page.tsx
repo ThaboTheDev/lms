@@ -18,18 +18,18 @@ export default async function LoginPage({
 
   return (
     <main className="grid min-h-dvh lg:grid-cols-[1.1fr_1fr]">
-      <section className="hidden flex-col justify-between bg-ink px-10 py-12 text-white lg:flex">
+      <section className="hidden flex-col justify-between bg-rail px-10 py-12 text-rail-ink lg:flex">
         <p className="font-serif text-lg">Institutional LMS</p>
         <div className="max-w-md">
           <h1 className="font-serif text-4xl font-semibold leading-tight">
             Teaching, records and administration in one place.
           </h1>
-          <p className="mt-4 text-white/70">
+          <p className="mt-4 text-rail-ink/70">
             Enrolment through to certification, with the audit trail an academic
             institution has to keep.
           </p>
         </div>
-        <p className="text-sm text-white/50">
+        <p className="text-sm text-rail-muted">
           Protected system. Activity is logged.
         </p>
       </section>

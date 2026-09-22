@@ -13,6 +13,7 @@ thing in the words a learner would use.
 | Status messages | Action results use `role="status"` or `role="alert"` so a screen reader hears them without a focus change |
 | Tables | `<caption>`, `<th scope>` and row headers, so a screen reader can read across a row of results |
 | Colour | Never the only signal: state tags carry text, not just a colour |
+| Contrast | Body text, controls and the navigation rail meet 4.5:1 in both colour schemes; the active nav marker meets 3:1. The rail keeps its own tokens (`--rail*`) because `--ink` is the text colour and inverts |
 | Motion | Limited by default, and `prefers-reduced-motion` disables what remains |
 | High contrast | Structural borders repainted under `forced-colors: active` |
 | Touch | 44px minimum targets under `pointer: coarse`, including in dense tables |

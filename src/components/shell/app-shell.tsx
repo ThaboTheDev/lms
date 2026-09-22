@@ -33,7 +33,7 @@ export function AppShell({
 
       <div
         className={cn(
-          'fixed inset-y-0 left-0 z-30 w-60 bg-ink transition-transform lg:static lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-30 w-60 bg-rail transition-transform lg:static lg:translate-x-0',
           navOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
@@ -45,7 +45,7 @@ export function AppShell({
           type="button"
           aria-label="Close navigation"
           onClick={() => setNavOpen(false)}
-          className="fixed inset-0 z-20 bg-ink/40 lg:hidden"
+          className="fixed inset-0 z-20 bg-rail/60 lg:hidden"
         />
       )}
 

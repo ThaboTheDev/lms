@@ -17,6 +17,11 @@ export default {
         accent: 'rgb(var(--accent) / <alpha-value>)',
         caution: 'rgb(var(--caution) / <alpha-value>)',
         danger: 'rgb(var(--danger) / <alpha-value>)',
+        'on-brand': 'rgb(var(--on-brand) / <alpha-value>)',
+        rail: 'rgb(var(--rail) / <alpha-value>)',
+        'rail-ink': 'rgb(var(--rail-ink) / <alpha-value>)',
+        'rail-muted': 'rgb(var(--rail-muted) / <alpha-value>)',
+        'rail-accent': 'rgb(var(--rail-accent) / <alpha-value>)',
       },
       fontFamily: {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],

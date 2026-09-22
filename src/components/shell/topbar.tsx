@@ -53,7 +53,7 @@ export function Topbar({
         >
           Messages
           {unreadMessages > 0 && (
-            <span className="ml-1.5 rounded bg-brand px-1.5 py-0.5 text-2xs font-medium text-white tabular-nums">
+            <span className="ml-1.5 rounded bg-brand px-1.5 py-0.5 text-2xs font-medium text-on-brand tabular-nums">
               {unreadMessages}
             </span>
           )}
@@ -67,7 +67,7 @@ export function Topbar({
         >
           Notices
           {unreadNotifications > 0 && (
-            <span className="ml-1.5 rounded bg-brand px-1.5 py-0.5 text-2xs font-medium text-white tabular-nums">
+            <span className="ml-1.5 rounded bg-brand px-1.5 py-0.5 text-2xs font-medium text-on-brand tabular-nums">
               {unreadNotifications}
             </span>
           )}
