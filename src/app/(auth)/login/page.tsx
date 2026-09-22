@@ -2,59 +2,86 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getCurrentPrincipal } from '@/lib/auth/current-user';
+import { BRAND } from '@/lib/brand';
+import { BrandMark } from '@/components/brand/mark';
 import { LoginForm } from './login-form';
 
 export const metadata: Metadata = { title: 'Sign in' };
+
+const points = [
+  'Track academic progress',
+  'Courses, assessments and records',
+  'Messages from faculty and the registry',
+];
 
 export default async function LoginPage({
   searchParams,
 }: {
   searchParams: Promise<{ next?: string; reset?: string }>;
 }) {
-  const principal = await getCurrentPrincipal();
+  let principal = null;
+  try {
+    principal = await getCurrentPrincipal();
+  } catch {
+    // The session store being unreachable must not hide the sign-in screen.
+    principal = null;
+  }
   if (principal) redirect('/dashboard');
 
   const { next, reset } = await searchParams;
 
   return (
-    <main className="grid min-h-dvh lg:grid-cols-[1.1fr_1fr]">
-      <section className="hidden flex-col justify-between bg-rail px-10 py-12 text-rail-ink lg:flex">
-        <p className="font-serif text-lg">Institutional LMS</p>
+    <main className="grid min-h-dvh lg:grid-cols-[1.05fr_1fr]">
+      <section className="relative hidden flex-col justify-between bg-[linear-gradient(171deg,#0b113b_10%,#151e54_90%)] px-10 py-12 text-white lg:flex">
+        <a href={BRAND.website} className="w-fit rounded-md">
+          <BrandMark />
+        </a>
         <div className="max-w-md">
-          <h1 className="font-serif text-4xl font-semibold leading-tight">
-            Teaching, records and administration in one place.
-          </h1>
-          <p className="mt-4 text-rail-ink/70">
-            Enrolment through to certification, with the audit trail an academic
-            institution has to keep.
-          </p>
+          <p className="eyebrow eyebrow-on-navy">Est. {BRAND.established}</p>
+          <h1 className="font-sans text-4xl font-bold leading-tight text-gold-bright">Student portal</h1>
+          <p className="mt-4 text-base leading-relaxed text-slate-300">{BRAND.tagline}</p>
+          <ul className="mt-8 space-y-3 text-sm">
+            {points.map((point) => (
+              <li key={point} className="flex items-center gap-3">
+                <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-gold-bright" />
+                {point}
+              </li>
+            ))}
+          </ul>
         </div>
-        <p className="text-sm text-rail-muted">
-          Protected system. Activity is logged.
+        <p className="text-sm text-slate-300">
+          {BRAND.name}. Protected system. Activity is logged.
         </p>
       </section>
 
-      <section className="flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-sm">
-          <h2 className="font-serif text-2xl font-semibold">Sign in</h2>
-          <p className="mt-1 text-sm text-muted">
-            Use the account issued by your institution.
-          </p>
-          {reset === '1' && (
-            <p
-              role="status"
-              className="mt-3 border-l-2 border-brand bg-brand/5 px-3 py-2 text-sm text-brand"
-            >
-              Your password has been set. Sign in with it.
+      <section className="flex flex-col bg-surface">
+        <div className="bg-navy px-6 py-4 lg:hidden">
+          <BrandMark size="sm" />
+          <div className="mt-4 h-0.5 w-16 bg-gold-bright" aria-hidden />
+        </div>
+        <div className="flex flex-1 items-center justify-center px-6 py-12">
+          <div className="w-full max-w-sm">
+            <p className="eyebrow">Student portal</p>
+            <h2 className="font-sans text-3xl font-bold">Sign in</h2>
+            <p className="mt-2 text-sm text-muted">
+              Enter your credentials to access the {BRAND.shortName} learning platform.
             </p>
-          )}
-          <LoginForm redirectTo={next} />
-          <p className="mt-6 text-sm text-muted">
-            Applying to study?{' '}
-            <Link href="/apply" className="text-accent underline underline-offset-2">
-              Start an application
-            </Link>
-          </p>
+            {reset === '1' && (
+              <p
+                role="status"
+                className="mt-4 border-l-2 border-gold-ink bg-gold/10 px-3 py-2 text-sm text-gold-ink"
+              >
+                Your password has been set. Sign in with it.
+              </p>
+            )}
+            <LoginForm redirectTo={next} />
+            <p className="mt-6 text-sm text-muted">
+              Applying to study?{' '}
+              <Link href="/apply" className="font-semibold text-accent underline underline-offset-2">
+                Start an application
+              </Link>
+            </p>
+          </div>
         </div>
       </section>
     </main>

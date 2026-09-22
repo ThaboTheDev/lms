@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentPrincipal } from '@/lib/auth/current-user';
+import { PublicFrame } from '@/components/brand/public-frame';
 import { ForgotPasswordForm } from './forgot-form';
 
 export const metadata: Metadata = { title: 'Forgotten password' };
@@ -13,7 +14,7 @@ export default async function ForgotPasswordPage() {
   if (principal) redirect('/security');
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6">
+    <PublicFrame width="md" center>
       <h1 className="font-serif text-2xl font-semibold">Forgotten your password?</h1>
       <p className="mt-2 text-sm text-muted">
         Enter the address your account uses and we will email you a link to choose a new one. The
@@ -28,6 +29,6 @@ export default async function ForgotPasswordPage() {
           Back to sign in
         </Link>
       </p>
-    </main>
+    </PublicFrame>
   );
 }

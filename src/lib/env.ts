@@ -7,7 +7,7 @@ import { z } from 'zod';
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   APP_URL: z.string().url().default('http://localhost:3000'),
-  APP_NAME: z.string().default('Institutional LMS'),
+  APP_NAME: z.string().default('MSRI'),
   /** Tenant served by the public pages (application form, certificate verification). */
   PUBLIC_INSTITUTION_SLUG: z.string().optional(),
   AUTH_SECRET: z.string().min(32, 'AUTH_SECRET must be at least 32 characters'),
@@ -30,7 +30,7 @@ const schema = z.object({
   SMTP_PORT: z.coerce.number().int().optional(),
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
-  MAIL_FROM: z.string().default('Institutional LMS <no-reply@example.ac.za>'),
+  MAIL_FROM: z.string().default('MSRI <no-reply@msri.online>'),
 
   REDIS_URL: z.string().optional(),
   QUEUE_DRIVER: z.enum(['memory', 'redis']).default('memory'),

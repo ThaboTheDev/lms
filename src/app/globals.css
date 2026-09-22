@@ -3,61 +3,76 @@
 @tailwind utilities;
 
 /*
- * Institutional palette. Values are space separated RGB so Tailwind can apply
- * opacity. An institution's primary and secondary colours are injected at
- * runtime on the <body> element, so branding changes without a rebuild.
+ * MSRI palette, taken from the institute site (msri-website assets/css/global.css).
+ *
+ *   navy  #0b113b  structure: the rail, headings, links
+ *   gold  #cba65e  the single accent: primary actions, the rule under a title
+ *   gold  #e9c176  the brighter gold, for text and marks that sit on navy
+ *
+ * Values are space-separated RGB so Tailwind can apply opacity. An institution
+ * may override the structural tokens at runtime (see institutionBrandStyle);
+ * text colours stay here so a dark scheme can still flip them.
+ *
+ * Gold #cba65e on white is only 2.3:1, so it is never used as text or as a
+ * focus ring. Text on a light surface uses --gold-ink (#85651b, 5.4:1).
+ * Focus uses --focus (#8f6b28, 4.7:1).
  */
 :root {
-  --ink: 16 35 43;        /* deep slate used for text */
-  --muted: 92 105 110;
-  --line: 220 225 222;
-  --paper: 246 247 245;   /* page background */
+  --ink: 30 41 59;          /* #1e293b */
+  --muted: 71 85 105;       /* #475569 */
+  --line: 226 232 240;      /* #e2e8f0 */
+  --paper: 248 250 252;     /* #f8fafc */
   --surface: 255 255 255;
-  --brand: 14 92 74;      /* institutional green: primary actions and active state */
-  --accent: 17 71 94;     /* secondary, used for links and data emphasis */
-  --caution: 163 91 0;
+
+  --navy: 11 17 59;         /* #0b113b */
+  --navy-light: 21 30 84;   /* #151e54 */
+  --gold: 203 166 94;       /* #cba65e, fills */
+  --gold-bright: 233 193 118; /* #e9c176, on navy */
+  --gold-ink: 133 101 27;   /* #85651b, text on white */
+  --focus: 143 107 40;      /* #8f6b28 */
+
+  /* Primary actions are gold with navy text, matching the institute's buttons. */
+  --brand: 203 166 94;
+  --on-brand: 11 17 59;
+  --accent: 11 17 59;
+
+  --caution: 154 101 16;
   --danger: 150 32 31;
-  /* Text and icons drawn on a filled brand or danger surface. Both of those
-     colours are dark here and light in the dark scheme, so what sits on them
-     has to flip with them. */
-  --on-brand: 255 255 255;
+  --on-danger: 255 255 255;
 
   /*
-   * The navigation rail carries light text, so it has to stay dark enough for
-   * that in both colour schemes. It cannot borrow --ink: that token is the
-   * text colour and it inverts under prefers-color-scheme, which is how the
-   * rail once ended up near-white underneath near-white text. Everything drawn
-   * on the rail uses these instead.
+   * The navigation rail carries light text, so it stays navy in both schemes.
+   * It cannot borrow --ink: that token inverts under prefers-color-scheme.
    */
-  --rail: 16 35 43;
-  --rail-ink: 232 236 234;
-  --rail-muted: 154 166 170;
-  /* Light enough to read on the rail, where --brand itself would not: dark
-     green on near black is a 2:1 marker, which is no marker at all. */
-  --rail-accent: 94 186 158;
+  --rail: 11 17 59;
+  --rail-ink: 248 250 252;
+  --rail-muted: 203 213 225;  /* #cbd5e1 on navy is 12:1 */
+  --rail-accent: 233 193 118;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --ink: 232 236 234;
-    --muted: 154 166 170;
-    --line: 47 61 67;
-    --paper: 13 23 27;
-    --surface: 19 31 36;
-    --brand: 63 158 130;
-    --accent: 116 176 203;
-    --caution: 214 146 54;
-    --danger: 224 122 118;
-    /* Brand and danger both lighten here, so what sits on them darkens. */
-    --on-brand: 13 23 27;
+    --ink: 248 250 252;
+    --muted: 203 213 225;
+    --line: 42 53 97;
+    --paper: 7 12 43;         /* #070c2b */
+    --surface: 16 22 52;      /* raised navy, not the page */
 
-    /* There is nothing darker than the page left to invert into, so the rail
-       becomes a raised panel instead of a sunken one: still clearly not the
-       content area, and everything drawn on it keeps its contrast. */
-    --rail: 35 51 59;
-    --rail-ink: 232 236 234;
-    --rail-muted: 154 166 170;
-    --rail-accent: 94 186 158;
+    --gold-ink: 233 193 118;
+    --focus: 233 193 118;
+    --brand: 233 193 118;
+    --on-brand: 11 17 59;
+    --accent: 233 193 118;
+
+    --caution: 232 184 92;
+    --danger: 224 122 118;
+    /* Danger lightens here, so what sits on it darkens. */
+    --on-danger: 11 17 59;
+
+    --rail: 11 17 59;
+    --rail-ink: 248 250 252;
+    --rail-muted: 203 213 225;
+    --rail-accent: 233 193 118;
   }
 }
 
@@ -68,14 +83,84 @@ html {
 body {
   background-color: rgb(var(--paper));
   color: rgb(var(--ink));
+  font-family: Candara, Calibri, 'Segoe UI', Optima, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Keyboard focus must stay visible everywhere: WCAG 2.2 AA, focus appearance. */
+/* Headings are navy in the light scheme, the way the institute site sets them.
+   The dark scheme has to flip them or they disappear into the page. A utility
+   colour (text-white, text-ink) still wins, which is how a navy band can carry
+   a white title. */
+h1, h2, h3 {
+  color: rgb(var(--navy));
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) :is(h1, h2, h3) {
+    color: rgb(var(--ink));
+  }
+}
+
+/* The institute's catalogue rule: a short gold line above a page title. */
+#main h1:not(.band-title)::before,
+.public-main h1::before {
+  content: '';
+  display: block;
+  width: 3.75rem;
+  height: 2px;
+  margin-bottom: 0.65rem;
+  background: rgb(var(--gold));
+}
+
+/* Short gold rule, then small uppercase tracked text. */
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0 0 0.55rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(var(--gold-ink));
+}
+
+.eyebrow::before {
+  content: '';
+  width: 3.75rem;
+  height: 1px;
+  background: rgb(var(--gold));
+  flex: none;
+}
+
+.eyebrow-on-navy {
+  color: rgb(var(--gold-bright));
+}
+
+.eyebrow-on-navy::before {
+  background: rgb(var(--gold-bright));
+}
+
+/* Keyboard focus must stay visible everywhere: WCAG 2.2 AA, focus appearance.
+   Gold-as-fill is too light on white, so the ring is the darker gold. */
 :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
-  outline: 2px solid rgb(var(--brand));
+  outline: 2px solid rgb(var(--focus));
   outline-offset: 2px;
   border-radius: 2px;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: rgb(var(--navy));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) input[type='checkbox'],
+  :root:not([data-theme='light']) input[type='radio'] {
+    accent-color: rgb(var(--gold-bright));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

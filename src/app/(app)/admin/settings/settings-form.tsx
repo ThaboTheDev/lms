@@ -69,7 +69,7 @@ export function SettingsForm({ values }: { values: SettingsValues }) {
 
       <Panel
         title="Branding"
-        description="Applied as CSS custom properties, so a change here needs no rebuild."
+        description="Primary is the navy used for the navigation rail. Secondary is the gold used for buttons and highlights. MSRI is #0B113B and #CBA65E. A change is applied on the next page load, with no rebuild."
       >
         <div className="grid gap-3 px-4 py-4 sm:grid-cols-2">
           <Field label="Primary colour" htmlFor="primaryColour" error={state.fieldErrors?.primaryColour}>

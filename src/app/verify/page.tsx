@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Button } from '@/components/ui/primitives';
+import { PublicFrame } from '@/components/brand/public-frame';
 
 export const metadata: Metadata = {
   title: 'Verify a certificate',
@@ -15,7 +16,7 @@ async function lookup(formData: FormData) {
 
 export default function VerifyIndexPage() {
   return (
-    <main className="mx-auto max-w-lg px-6 py-16">
+    <PublicFrame width="lg">
       <h1 className="font-serif text-3xl font-semibold">Verify a certificate</h1>
       <p className="mt-3 text-muted">
         Enter the verification code printed on the certificate. You will see what was awarded, to
@@ -41,6 +42,6 @@ export default function VerifyIndexPage() {
         </p>
         <Button type="submit">Check this certificate</Button>
       </form>
-    </main>
+    </PublicFrame>
   );
 }

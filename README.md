@@ -1,8 +1,12 @@
-# Institutional LMS
+# MSRI learning platform
 
-A learning management system for a higher-learning institution: admissions
-through to certification, with the academic administration, quality assurance
-and financial records an accredited institution has to keep.
+The learning management system for the Mzuvukile Slabbert Radebe Institute:
+admissions through to certification, with the academic administration, quality
+assurance and financial records an accredited institution has to keep.
+
+The interface follows the institute site at https://msri-website.vercel.app/:
+navy `#0B113B` for structure, gold `#CBA65E` as the single accent, the crest,
+and the institute's Candara / Calibri type stack.
 
 This is a working application, not a prototype. All ten phases are implemented:
 project setup, database, authentication and role-based access control; student
@@ -27,7 +31,7 @@ database.
 | Layer | Choice | Why |
 | --- | --- | --- |
 | Framework | Next.js 15 (App Router), React 19, TypeScript | Server components keep student data on the server; one deployable artefact |
-| Styling | Tailwind CSS with CSS custom properties | Per-institution branding without a rebuild |
+| Styling | Tailwind CSS with CSS custom properties | MSRI palette, overridable per institution without a rebuild |
 | Database | PostgreSQL 16 | Relational integrity for academic records |
 | ORM | Prisma 6 | Typed queries and reviewable migrations |
 | Auth | First-party, database-backed sessions, Argon2id | No opaque dependency between the institution and its own access control |
@@ -49,8 +53,9 @@ npm run db:seed                # fictional institution and people
 npm run dev
 ```
 
-Open http://localhost:3000. Seeded accounts all use the passphrase printed by
-the seed script:
+Open http://localhost:3000. The seeded institution is the Mzuvukile Slabbert
+Radebe Institute. Accounts all use the passphrase printed by the seed script
+(the addresses below are the demo logins; they were not renamed):
 
 | Account | Role |
 | --- | --- |

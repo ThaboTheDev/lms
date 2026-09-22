@@ -28,19 +28,40 @@ async function main() {
     });
   }
 
+  // Rename the fictional Kopano row if a previous seed created it, so the
+  // same database becomes MSRI instead of growing a second institution.
+  const legacy = await prisma.institution.findUnique({ where: { slug: 'kopano' } });
+  if (legacy) {
+    const taken = await prisma.institution.findUnique({ where: { slug: 'msri' } });
+    if (!taken) {
+      await prisma.institution.update({ where: { id: legacy.id }, data: { slug: 'msri' } });
+    }
+  }
+
+  const institutionProfile = {
+    name: 'Mzuvukile Slabbert Radebe Institute',
+    shortName: 'MSRI',
+    registrationNo: '2015/MSRI/07',
+    contactEmail: 'info@msri.online',
+    contactPhone: '+27 11 000 0000',
+    emailFromName: 'MSRI',
+    emailFromAddress: 'info@msri.online',
+    addressLine1: 'MSRI Academic Complex',
+    city: 'Johannesburg',
+    province: 'Gauteng',
+    country: 'ZA',
+    certificatePrefix: 'MSRI',
+    primaryColour: '#0B113B',
+    secondaryColour: '#CBA65E',
+    footerText: 'Mzuvukile Slabbert Radebe Institute · Est. 2015',
+  };
+
   const institution = await prisma.institution.upsert({
-    where: { slug: 'kopano' },
-    update: {},
+    where: { slug: 'msri' },
+    update: institutionProfile,
     create: {
-      slug: 'kopano',
-      name: 'Kopano Institute of Higher Learning',
-      shortName: 'Kopano',
-      registrationNo: '2019/FICTIONAL/07',
-      contactEmail: 'registry@kopano.example.ac.za',
-      contactPhone: '+27 11 000 0000',
-      city: 'Vanderbijlpark',
-      province: 'Gauteng',
-      certificatePrefix: 'KIHL',
+      slug: 'msri',
+      ...institutionProfile,
     },
   });
 
@@ -1111,7 +1132,7 @@ async function main() {
           fileId: file.id,
           declaredAmount: 25_500,
           declaredDate: new Date('2026-02-18'),
-          reference: index === 1 ? 'KIHL 202600004' : `KIHL ${learner.studentNumber}`,
+          reference: index === 1 ? 'MSRI 202600004' : `MSRI ${learner.studentNumber}`,
           status: 'PENDING',
           submittedAt: new Date('2026-02-19'),
         },

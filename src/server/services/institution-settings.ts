@@ -64,7 +64,7 @@ export async function updateInstitutionSettings(
   const primaryColour = input.primaryColour.trim();
   const secondaryColour = input.secondaryColour.trim();
   if (!HEX_COLOUR.test(primaryColour) || !HEX_COLOUR.test(secondaryColour)) {
-    throw new AppError('Colours must be six digit hex values, such as #12333F.', 422, 'validation_failed');
+    throw new AppError('Colours must be six digit hex values, such as #0B113B.', 422, 'validation_failed');
   }
 
   const certificatePrefix = input.certificatePrefix.trim().toUpperCase();

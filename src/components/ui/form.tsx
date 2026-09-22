@@ -108,7 +108,7 @@ export function FormMessage({ status, message }: { status?: string; message?: st
       role={isError ? 'alert' : 'status'}
       className={cn(
         'border-l-2 px-3 py-2 text-sm',
-        isError ? 'border-danger bg-danger/5 text-danger' : 'border-brand bg-brand/5 text-brand',
+        isError ? 'border-danger bg-danger/5 text-danger' : 'border-gold-ink bg-gold/10 text-gold-ink',
       )}
     >
       {message}

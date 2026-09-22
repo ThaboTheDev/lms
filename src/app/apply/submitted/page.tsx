@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { PublicFrame } from '@/components/brand/public-frame';
 
 export const metadata: Metadata = { title: 'Application sent' };
 
@@ -11,12 +12,12 @@ export default async function SubmittedPage({
   const { reference } = await searchParams;
 
   return (
-    <main className="mx-auto max-w-prose px-6 py-16">
+    <PublicFrame>
       <h1 className="font-serif text-3xl font-semibold">Your application is with us</h1>
       <p className="mt-3 text-muted">
         Keep this reference number. Quote it in any email or phone call about your application.
       </p>
-      <p className="mt-6 border-l-2 border-brand bg-brand/5 px-4 py-3 font-serif text-2xl tabular-nums">
+      <p className="mt-6 border-l-2 border-gold-ink bg-gold/10 px-4 py-3 font-serif text-2xl tabular-nums">
         {reference ?? 'Reference not available'}
       </p>
       <h2 className="mt-8 font-serif text-lg font-semibold">What happens next</h2>
@@ -29,6 +30,6 @@ export default async function SubmittedPage({
       <Link href="/apply" className="mt-8 inline-block text-accent underline underline-offset-2">
         Send another application
       </Link>
-    </main>
+    </PublicFrame>
   );
 }

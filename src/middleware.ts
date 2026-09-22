@@ -8,6 +8,7 @@ const PUBLIC_PATHS = [
   '/verify',          // public certificate verification
   '/accessibility',   // public accessibility statement
   '/api/v1/health',
+  '/api/v1/auth/sign-out', // must run even when the cookie is already gone
 ];
 
 /**
