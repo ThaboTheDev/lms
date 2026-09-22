@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import type { Route } from 'next';
 import { prisma } from '@/lib/db';
 import { requirePrincipal } from '@/lib/auth/current-user';
 import { can, requirePermission } from '@/lib/rbac/authorize';
@@ -63,7 +64,7 @@ export default async function UsersPage({
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   const canManage = can(principal, 'user.manage');
 
-  const pageHref = (target: number) => {
+  const pageHref = (target: number): Route => {
     const next = new URLSearchParams();
     if (query) next.set('q', query);
     next.set('page', String(target));

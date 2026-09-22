@@ -41,6 +41,40 @@ Roles are scoped. A faculty administrator granted at a faculty reaches
 everything inside it and nothing outside. Grant at the narrowest scope that
 works.
 
+`/admin/roles` is where the list above lives. System roles are shipped with the
+platform and kept in step by `npm run rbac:sync`, so they are read there;
+institution roles can be composed for a job this institution actually has. A new
+role grants nothing until permissions are added to it, which is the safe
+default. A role cannot be deleted while somebody still holds it.
+
+## People and access
+
+Invite people from `/admin/users/invite` rather than creating a password for
+them: the account is created with a password nobody knows, and they set their
+own from a single-use link that expires in seven days. If a link is lost, the
+person asks for a new password at `/forgot-password` and the same thing happens.
+
+Opening a person shows the roles they hold. Granting and revoking takes effect
+at their next request, so somebody who is signed in keeps their access until
+then - suspend the account from the same screen if that matters. Suspending
+keeps every record they have made; it only stops them signing in.
+
+## Institution settings
+
+`/admin/settings` carries the profile, branding, contact details and the
+certificate prefix. Two of these are worth a second thought: the prefix is
+printed on every certificate number, so changing it changes how certificates
+issued years ago read, and the outgoing email address is what every automated
+message will be sent from.
+
+## Support
+
+`/support` holds the tickets people raise, each with a number they can quote.
+Holders of `ticket.read` see the whole queue and can assign tickets, change
+their status and leave internal notes that the person who raised the ticket
+never sees; everybody else sees only what they raised themselves. The due date
+on a ticket is the response target for its priority, not a promise.
+
 ## Admissions
 
 Applications arrive at `/apply` and land in the queue. Move each one along with

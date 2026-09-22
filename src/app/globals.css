@@ -8,7 +8,7 @@
  * runtime on the <body> element, so branding changes without a rebuild.
  */
 :root {
-  --ink: 16 35 43;        /* deep slate used for text and the navigation rail */
+  --ink: 16 35 43;        /* deep slate used for text */
   --muted: 92 105 110;
   --line: 220 225 222;
   --paper: 246 247 245;   /* page background */
@@ -17,6 +17,24 @@
   --accent: 17 71 94;     /* secondary, used for links and data emphasis */
   --caution: 163 91 0;
   --danger: 150 32 31;
+  /* Text and icons drawn on a filled brand or danger surface. Both of those
+     colours are dark here and light in the dark scheme, so what sits on them
+     has to flip with them. */
+  --on-brand: 255 255 255;
+
+  /*
+   * The navigation rail carries light text, so it has to stay dark enough for
+   * that in both colour schemes. It cannot borrow --ink: that token is the
+   * text colour and it inverts under prefers-color-scheme, which is how the
+   * rail once ended up near-white underneath near-white text. Everything drawn
+   * on the rail uses these instead.
+   */
+  --rail: 16 35 43;
+  --rail-ink: 232 236 234;
+  --rail-muted: 154 166 170;
+  /* Light enough to read on the rail, where --brand itself would not: dark
+     green on near black is a 2:1 marker, which is no marker at all. */
+  --rail-accent: 94 186 158;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -30,6 +48,16 @@
     --accent: 116 176 203;
     --caution: 214 146 54;
     --danger: 224 122 118;
+    /* Brand and danger both lighten here, so what sits on them darkens. */
+    --on-brand: 13 23 27;
+
+    /* There is nothing darker than the page left to invert into, so the rail
+       becomes a raised panel instead of a sunken one: still clearly not the
+       content area, and everything drawn on it keeps its contrast. */
+    --rail: 35 51 59;
+    --rail-ink: 232 236 234;
+    --rail-muted: 154 166 170;
+    --rail-accent: 94 186 158;
   }
 }
 

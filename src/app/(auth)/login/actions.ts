@@ -1,6 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import type { Route } from 'next';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { env } from '@/lib/env';
@@ -101,6 +102,10 @@ export async function signIn(_prev: LoginState, formData: FormData): Promise<Log
   await resetRateLimit(`login:${ipKey}`);
   await createSession(user.id, context, !user.mfaEnabled);
 
+  // Only a path inside this application is honoured, so a crafted `next` cannot
+  // send a signed-in person off to somebody else's site. What is left is a
+  // string typed routes cannot check, because where it points is decided by the
+  // request rather than by this file.
   const safeRedirect = redirectTo && redirectTo.startsWith('/') ? redirectTo : '/dashboard';
 
   // A session for an account with a second factor exists but may do nothing
@@ -110,5 +115,5 @@ export async function signIn(_prev: LoginState, formData: FormData): Promise<Log
     redirect(`/login/verify?next=${encodeURIComponent(safeRedirect)}`);
   }
 
-  redirect(safeRedirect);
+  redirect(safeRedirect as Route);
 }

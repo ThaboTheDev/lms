@@ -8,11 +8,14 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   size?: 'sm' | 'md';
 };
 
+// Filled buttons carry --on-brand rather than a hard-coded white: brand and
+// danger are dark in the light scheme and light in the dark one, so white text
+// on them stops being readable once the scheme flips.
 const buttonVariants = {
-  primary: 'bg-brand text-white hover:bg-brand/90 disabled:bg-brand/50',
+  primary: 'bg-brand text-on-brand hover:bg-brand/90 disabled:bg-brand/50',
   secondary: 'border border-line bg-surface text-ink hover:border-ink/40',
   ghost: 'text-ink hover:bg-ink/5',
-  danger: 'bg-danger text-white hover:bg-danger/90',
+  danger: 'bg-danger text-on-brand hover:bg-danger/90',
 };
 
 export function Button({ className, variant = 'primary', size = 'md', ...props }: ButtonProps) {

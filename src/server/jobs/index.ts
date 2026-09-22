@@ -40,9 +40,11 @@ export function registerJobHandlers() {
       return;
     }
 
+    // Every remaining verdict - CLEAN, INFECTED, SKIPPED - is a ScanStatus, so
+    // this is the one place the file stops being PENDING.
     await prisma.fileObject.update({
       where: { id: fileId },
-      data: { scanStatus: result.verdict as never },
+      data: { scanStatus: result.verdict },
     });
   });
 

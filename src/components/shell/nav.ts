@@ -1,8 +1,10 @@
+import type { Route } from 'next';
 import type { PermissionKey } from '@/lib/rbac/permissions';
 
 export interface NavItem {
   label: string;
-  href: string;
+  /** Typed, so a rail pointing at a page that was never built fails the build. */
+  href: Route;
   /** The item appears only if the user holds at least one of these. */
   permissions?: PermissionKey[];
 }

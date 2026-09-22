@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import type { Route } from 'next';
 import { requirePrincipal } from '@/lib/auth/current-user';
 import { listNotifications, loadPreferences } from '@/server/services/notifications';
 import {
@@ -68,7 +69,7 @@ export default async function NotificationsPage() {
                 <div className="min-w-0">
                   <p className={`text-sm ${notification.readAt ? '' : 'font-semibold'}`}>
                     {notification.linkUrl ? (
-                      <Link href={notification.linkUrl} className="text-accent underline-offset-2 hover:underline">
+                      <Link href={notification.linkUrl as Route} className="text-accent underline-offset-2 hover:underline">
                         {notification.title}
                       </Link>
                     ) : (

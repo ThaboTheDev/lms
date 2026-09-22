@@ -73,7 +73,8 @@ function BlockView({ block }: { block: Block }) {
   if (block.file.mimeType.startsWith('video/')) {
     return (
       <div className="px-4 py-4">
-        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+        {/* Captions are the uploader's responsibility, a known gap recorded in
+            docs/ACCESSIBILITY.md rather than something the player can fix. */}
         <video controls preload="metadata" className="w-full max-w-3xl bg-ink" src={href} />
         <p className="mt-2 text-xs text-muted">
           {block.file.originalName} · {humanFileSize(block.file.sizeBytes)}
@@ -92,9 +93,12 @@ function BlockView({ block }: { block: Block }) {
   }
 
   if (block.file.mimeType.startsWith('image/')) {
-    // eslint-disable-next-line @next/next/no-img-element
     return (
       <figure className="px-4 py-4">
+        {/* Not next/image: these bytes live in object storage and are served by
+            a signed URL, so routing them through the image optimiser would put
+            the application back in the data path. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={href} alt={block.file.originalName} className="max-w-full border border-line" />
       </figure>
     );

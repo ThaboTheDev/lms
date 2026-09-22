@@ -41,12 +41,15 @@ export const Textarea = React.forwardRef<
 export function Checkbox({
   id,
   name,
+  value,
   label,
   defaultChecked,
   error,
 }: {
   id: string;
   name: string;
+  /** Set when several checkboxes share a name, so each posts its own value. */
+  value?: string;
   label: React.ReactNode;
   defaultChecked?: boolean;
   error?: string;
@@ -57,6 +60,7 @@ export function Checkbox({
         <input
           id={id}
           name={name}
+          value={value}
           type="checkbox"
           defaultChecked={defaultChecked}
           aria-invalid={Boolean(error)}
