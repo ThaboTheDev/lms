@@ -25,7 +25,7 @@ export function FinaliseForm({ offeringId }: { offeringId: string }) {
         <FormMessage status={state.status} message={state.message} />
         <input type="hidden" name="offeringId" value={offeringId} />
         <p className="max-w-prose text-sm text-muted">
-          This writes each learner's course mark and result onto their enrolment, which is what the
+          This writes each learner&apos;s course mark and result onto their enrolment, which is what the
           transcript and progression read. Learners with work still outstanding are left alone rather
           than being failed on marks that were never entered.
         </p>

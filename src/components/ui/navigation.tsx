@@ -1,4 +1,13 @@
 import Link from 'next/link';
+import type { Route } from 'next';
+
+/**
+ * The hrefs these three components take are built at runtime - a record id out
+ * of a query, a page number, a tab key - so there is nothing for `typedRoutes`
+ * to check at this end. They are asserted once, where the string reaches
+ * `Link`, rather than at every call site. Links written as literals elsewhere
+ * are still checked, which is the point of having the feature on.
+ */
 
 export function Breadcrumbs({ trail }: { trail: { label: string; href?: string }[] }) {
   return (
@@ -7,7 +16,7 @@ export function Breadcrumbs({ trail }: { trail: { label: string; href?: string }
         {trail.map((crumb, index) => (
           <li key={`${crumb.label}-${index}`} className="flex items-center gap-1.5">
             {crumb.href ? (
-              <Link href={crumb.href} className="underline-offset-2 hover:underline">
+              <Link href={crumb.href as Route} className="underline-offset-2 hover:underline">
                 {crumb.label}
               </Link>
             ) : (
@@ -40,12 +49,12 @@ export function Pagination({
       </span>
       <div className="flex gap-2">
         {page > 1 && (
-          <Link href={buildHref(page - 1)} className="rounded border border-line px-3 py-1.5">
+          <Link href={buildHref(page - 1) as Route} className="rounded border border-line px-3 py-1.5">
             Previous
           </Link>
         )}
         {page < totalPages && (
-          <Link href={buildHref(page + 1)} className="rounded border border-line px-3 py-1.5">
+          <Link href={buildHref(page + 1) as Route} className="rounded border border-line px-3 py-1.5">
             Next
           </Link>
         )}
@@ -70,7 +79,7 @@ export function TabLinks({
           return (
             <li key={tab.key}>
               <Link
-                href={tab.href}
+                href={tab.href as Route}
                 aria-current={active ? 'page' : undefined}
                 className={
                   active

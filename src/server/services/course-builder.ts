@@ -1,5 +1,5 @@
 import 'server-only';
-import { prisma } from '@/lib/db';
+import { prisma, type Prisma } from '@/lib/db';
 import { AppError, NotFoundError } from '@/lib/errors';
 import { recordAudit } from '@/lib/audit';
 import { can, requirePermission, requireSameInstitution, type Principal } from '@/lib/rbac/authorize';
@@ -307,8 +307,14 @@ async function writeOrder(table: OrderableTable, items: { id: string; orderIndex
   // concurrent reorders cannot interleave into a half-applied order.
   await prisma.$transaction(
     items.map((item) =>
-      (prisma[table] as never as {
-        update: (args: { where: { id: string }; data: { orderIndex: number } }) => Promise<unknown>;
+      // Typed as a PrismaPromise rather than a plain Promise: `$transaction`
+      // batches the array into one round trip, and only Prisma's own promises
+      // can be told apart from one another to do that.
+      (prisma[table] as unknown as {
+        update: (args: {
+          where: { id: string };
+          data: { orderIndex: number };
+        }) => Prisma.PrismaPromise<unknown>;
       }).update({ where: { id: item.id }, data: { orderIndex: item.orderIndex } }),
     ),
   );

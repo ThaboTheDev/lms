@@ -1,6 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import type { Route } from 'next';
 import { readSession, markSessionVerified } from '@/lib/auth/session';
 import { verifySecondFactor } from '@/lib/auth/mfa';
 import { rateLimit } from '@/lib/rate-limit';
@@ -26,5 +27,7 @@ export async function verifyCode(_prev: FormState, formData: FormData): Promise<
   }
 
   await markSessionVerified();
-  redirect(next.startsWith('/') ? next : '/dashboard');
+  // As in the sign-in action: a path inside this application only, so the
+  // redirect cannot be pointed somewhere else.
+  redirect((next.startsWith('/') ? next : '/dashboard') as Route);
 }

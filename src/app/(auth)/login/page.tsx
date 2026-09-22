@@ -9,12 +9,12 @@ export const metadata: Metadata = { title: 'Sign in' };
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; reset?: string }>;
 }) {
   const principal = await getCurrentPrincipal();
   if (principal) redirect('/dashboard');
 
-  const { next } = await searchParams;
+  const { next, reset } = await searchParams;
 
   return (
     <main className="grid min-h-dvh lg:grid-cols-[1.1fr_1fr]">
@@ -40,6 +40,14 @@ export default async function LoginPage({
           <p className="mt-1 text-sm text-muted">
             Use the account issued by your institution.
           </p>
+          {reset === '1' && (
+            <p
+              role="status"
+              className="mt-3 border-l-2 border-brand bg-brand/5 px-3 py-2 text-sm text-brand"
+            >
+              Your password has been set. Sign in with it.
+            </p>
+          )}
           <LoginForm redirectTo={next} />
           <p className="mt-6 text-sm text-muted">
             Applying to study?{' '}
