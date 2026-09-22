@@ -1,0 +1,121 @@
+'use client';
+
+import { useRef, useState } from 'react';
+import { humanFileSize } from '@/lib/storage/keys';
+
+interface UploadedFile {
+  fileId: string;
+  name: string;
+  size: number;
+  mimeType: string;
+}
+
+type Stage = 'idle' | 'requesting' | 'uploading' | 'confirming' | 'done' | 'error';
+
+/**
+ * Three step upload: ask the server for a short-lived URL, PUT the bytes
+ * straight to storage, then tell the server it landed. The file never passes
+ * through the application server, and the resulting file id is written to a
+ * hidden input so the surrounding form posts it like any other field.
+ */
+export function FileUploader({
+  name,
+  folder,
+  label = 'Choose a file',
+  accept,
+  onUploaded,
+}: {
+  name: string;
+  folder: string;
+  label?: string;
+  accept?: string;
+  onUploaded?: (file: UploadedFile) => void;
+}) {
+  const [stage, setStage] = useState<Stage>('idle');
+  const [message, setMessage] = useState<string | null>(null);
+  const [uploaded, setUploaded] = useState<UploadedFile | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setMessage(null);
+    setStage('requesting');
+
+    try {
+      const presign = await fetch('/api/v1/files/presign', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          folder,
+          filename: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          sizeBytes: file.size,
+        }),
+      });
+
+      const presigned = await presign.json();
+      if (!presign.ok) throw new Error(presigned?.error?.message ?? 'The upload was refused.');
+
+      setStage('uploading');
+      const put = await fetch(presigned.uploadUrl, {
+        method: 'PUT',
+        headers: { 'content-type': file.type || 'application/octet-stream' },
+        body: file,
+      });
+      if (!put.ok) throw new Error('The file could not be sent to storage.');
+
+      setStage('confirming');
+      await fetch('/api/v1/files/confirm', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ fileId: presigned.fileId }),
+      });
+
+      const result: UploadedFile = {
+        fileId: presigned.fileId,
+        name: file.name,
+        size: file.size,
+        mimeType: file.type,
+      };
+      setUploaded(result);
+      setStage('done');
+      onUploaded?.(result);
+    } catch (error) {
+      setStage('error');
+      setMessage(error instanceof Error ? error.message : 'The upload did not finish.');
+    }
+  }
+
+  const status = {
+    idle: null,
+    requesting: 'Preparing the upload',
+    uploading: 'Sending the file',
+    confirming: 'Finishing up',
+    done: uploaded ? `${uploaded.name} · ${humanFileSize(uploaded.size)}` : 'Uploaded',
+    error: message,
+  }[stage];
+
+  return (
+    <div className="space-y-2">
+      <input type="hidden" name={name} value={uploaded?.fileId ?? ''} />
+      <input
+        ref={inputRef}
+        id={`${name}-input`}
+        type="file"
+        accept={accept}
+        onChange={handleChange}
+        aria-describedby={`${name}-status`}
+        className="block w-full text-sm file:mr-3 file:rounded file:border file:border-line file:bg-paper file:px-3 file:py-1.5 file:text-sm"
+      />
+      <p
+        id={`${name}-status`}
+        role={stage === 'error' ? 'alert' : 'status'}
+        className={stage === 'error' ? 'text-sm text-danger' : 'text-sm text-muted'}
+      >
+        {status ?? label}
+      </p>
+    </div>
+  );
+}

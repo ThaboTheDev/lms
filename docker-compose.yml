@@ -1,0 +1,57 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: lms
+      POSTGRES_PASSWORD: lms
+      POSTGRES_DB: lms
+    ports: ['5432:5432']
+    volumes: ['db-data:/var/lib/postgresql/data']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U lms']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ['redis-server', '--save', '', '--appendonly', 'no']
+    ports: ['6379:6379']
+
+  # S3 compatible object storage for learning content, submissions and proof of
+  # payment documents. Console on :9001, API on :9000.
+  storage:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: lms
+      MINIO_ROOT_PASSWORD: lms-secret
+    ports: ['9000:9000', '9001:9001']
+    volumes: ['storage-data:/data']
+
+  # Catches outbound mail in development. Web interface on :8025.
+  mail:
+    image: axllent/mailpit:latest
+    ports: ['1025:1025', '8025:8025']
+
+  app:
+    build: .
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://lms:lms@db:5432/lms?schema=public
+      REDIS_URL: redis://redis:6379
+      APP_URL: http://localhost:3000
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in your environment}
+      STORAGE_DRIVER: s3
+      S3_ENDPOINT: http://storage:9000
+      S3_ACCESS_KEY_ID: lms
+      S3_SECRET_ACCESS_KEY: lms-secret
+      MAIL_DRIVER: smtp
+      SMTP_HOST: mail
+      SMTP_PORT: 1025
+    ports: ['3000:3000']
+
+volumes:
+  db-data:
+  storage-data:

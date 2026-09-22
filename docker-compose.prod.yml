@@ -1,0 +1,114 @@
+# Production shape. Not a turnkey deployment: an institution will put the
+# database, object storage and TLS somewhere managed. This file shows what the
+# pieces are and how they talk to each other.
+#
+#   docker compose -f docker-compose.prod.yml up -d
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-lms}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Not published. Only the application and the backup job reach the database.
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-lms}?schema=public&connection_limit=20
+      REDIS_URL: redis://redis:6379
+      QUEUE_DRIVER: redis
+      RATE_LIMIT_DRIVER: redis
+      APP_URL: ${APP_URL:?set APP_URL}
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET}
+      STORAGE_DRIVER: s3
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_REGION: ${S3_REGION:-af-south-1}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      MAIL_DRIVER: smtp
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      MAIL_FROM: ${MAIL_FROM}
+      MALWARE_SCANNER_URL: ${MALWARE_SCANNER_URL:-}
+    ports: ['127.0.0.1:3000:3000']
+    deploy:
+      resources:
+        limits: { memory: 1g }
+
+  worker:
+    build:
+      context: .
+      target: worker
+    restart: unless-stopped
+    depends_on:
+      app: { condition: service_started }
+      redis: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-lms}?schema=public&connection_limit=10
+      REDIS_URL: redis://redis:6379
+      QUEUE_DRIVER: redis
+      APP_URL: ${APP_URL}
+      AUTH_SECRET: ${AUTH_SECRET}
+      MAIL_DRIVER: smtp
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      MAIL_FROM: ${MAIL_FROM}
+      # The worker runs no migrations: one process owns the schema.
+      RUN_MIGRATIONS: 'false'
+      SYNC_RBAC: 'false'
+
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB:-lms}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-35}
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/usr/local/bin/backup.sh:ro
+    entrypoint: ['/bin/sh', '-c']
+    command: ['while true; do /usr/local/bin/backup.sh; sleep 86400; done']
+
+volumes:
+  db-data:
+  redis-data:

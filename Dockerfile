@@ -1,0 +1,63 @@
+# syntax=docker/dockerfile:1
+
+# --- dependencies -----------------------------------------------------------
+FROM node:22-bookworm-slim AS deps
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# --- build ------------------------------------------------------------------
+FROM node:22-bookworm-slim AS build
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+# AUTH_SECRET is validated at import time; the build needs a value, never this one.
+ENV AUTH_SECRET=build-time-placeholder-value-not-used-at-runtime
+ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
+RUN npx prisma generate && npm run build
+
+# --- runtime: web -----------------------------------------------------------
+FROM node:22-bookworm-slim AS runner
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends openssl curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --uid 10001 --create-home lms
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000
+
+COPY --from=build --chown=lms:lms /app/.next/standalone ./
+COPY --from=build --chown=lms:lms /app/.next/static ./.next/static
+COPY --from=build --chown=lms:lms /app/public ./public
+COPY --from=build --chown=lms:lms /app/prisma ./prisma
+COPY --from=build --chown=lms:lms /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=build --chown=lms:lms /app/node_modules/@prisma ./node_modules/@prisma
+COPY --chown=lms:lms docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+USER lms
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD curl -fsS http://localhost:3000/api/v1/health/live || exit 1
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["node", "server.js"]
+
+# --- runtime: worker --------------------------------------------------------
+# The same image with a different command, so the worker cannot drift from the
+# handlers the web process registers.
+FROM node:22-bookworm-slim AS worker
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --uid 10001 --create-home lms
+ENV NODE_ENV=production
+
+COPY --from=deps --chown=lms:lms /app/node_modules ./node_modules
+COPY --from=build --chown=lms:lms /app/node_modules/.prisma ./node_modules/.prisma
+COPY --chown=lms:lms . .
+
+USER lms
+CMD ["npx", "tsx", "scripts/worker.ts"]

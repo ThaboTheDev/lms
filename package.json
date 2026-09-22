@@ -1,0 +1,64 @@
+{
+  "name": "institutional-lms",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=20.11"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "db:seed": "prisma db seed",
+    "rbac:sync": "tsx scripts/sync-permissions.ts",
+    "worker": "tsx scripts/worker.ts",
+    "atrisk": "tsx scripts/refresh-at-risk.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.670.0",
+    "@aws-sdk/s3-request-presigner": "^3.670.0",
+    "@node-rs/argon2": "^2.0.2",
+    "@prisma/client": "^6.2.1",
+    "bullmq": "^5.34.0",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "ioredis": "^5.4.1",
+    "next": "^16.3.5",
+    "nodemailer": "^10.0.10",
+    "otplib": "^12.0.1",
+    "qrcode": "^1.5.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "server-only": "^0.0.1",
+    "tailwind-merge": "^2.6.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.6",
+    "@types/nodemailer": "^6.4.17",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.18.0",
+    "eslint-config-next": "^15.1.6",
+    "postcss": "^8.5.1",
+    "prisma": "^6.2.1",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^5.0.1"
+  }
+}
