@@ -1,5 +1,5 @@
 // ============================================================================
-// Institutional LMS - database schema
+// MSRI learning platform - database schema
 // Postgres + Prisma. Multi-tenant by `institutionId` (shared schema, scoped
 // queries, optional Postgres RLS in production - see docs/DATABASE.md).
 // ============================================================================
@@ -484,8 +484,8 @@ model Institution {
   accreditationNo   String?
   logoFileId        String?
   faviconFileId     String?
-  primaryColour     String   @default("#12333F")
-  secondaryColour   String   @default("#0F6E5C")
+  primaryColour     String   @default("#0B113B")
+  secondaryColour   String   @default("#CBA65E")
   emailFromName     String?
   emailFromAddress  String?
   contactEmail      String?

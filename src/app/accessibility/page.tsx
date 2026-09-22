@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { PublicFrame } from '@/components/brand/public-frame';
 
 export const metadata: Metadata = {
   title: 'Accessibility',
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
  */
 export default function AccessibilityPage() {
   return (
-    <main className="mx-auto max-w-prose px-6 py-16">
+    <PublicFrame>
       <h1 className="font-serif text-3xl font-semibold">Accessibility</h1>
 
       <p className="mt-4 text-muted">
@@ -51,6 +52,6 @@ export default function AccessibilityPage() {
         institution&apos;s registry. Tell us what you were trying to do and what happened; we do not
         need you to diagnose it.
       </p>
-    </main>
+    </PublicFrame>
   );
 }

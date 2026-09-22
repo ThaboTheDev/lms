@@ -1,11 +1,12 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { requirePrincipal } from '@/lib/auth/current-user';
 import { prisma } from '@/lib/db';
 import { AppError } from '@/lib/errors';
 import { disableMfa, enableMfa } from '@/lib/auth/mfa';
-import { revokeAllSessions } from '@/lib/auth/session';
+import { destroyCurrentSession, revokeAllSessions } from '@/lib/auth/session';
 import { recordAudit } from '@/lib/audit';
 import type { FormState } from '@/lib/validation/common';
 
@@ -47,12 +48,19 @@ export async function turnOffMfa(): Promise<void> {
 export async function signOutEverywhere(): Promise<void> {
   const principal = await requirePrincipal();
   await revokeAllSessions(principal.userId);
-  await recordAudit(principal, {
-    action: 'security.sessions_revoked',
-    entityType: 'User',
-    entityId: principal.userId,
-  });
-  revalidatePath('/security');
+  try {
+    await recordAudit(principal, {
+      action: 'security.sessions_revoked',
+      entityType: 'User',
+      entityId: principal.userId,
+    });
+  } catch (error) {
+    // An audit write must not leave the person signed in. The sessions are
+    // already revoked; finish the sign-out either way.
+    console.error('[auth] session revoke audit failed', error);
+  }
+  await destroyCurrentSession();
+  redirect('/login');
 }
 
 export async function downloadMyData(): Promise<void> {

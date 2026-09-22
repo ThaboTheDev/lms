@@ -83,7 +83,7 @@ export function TabLinks({
                 aria-current={active ? 'page' : undefined}
                 className={
                   active
-                    ? 'inline-block border-b-2 border-brand px-3 py-2 text-sm font-medium text-ink'
+                    ? 'inline-block border-b-2 border-gold-ink px-3 py-2 text-sm font-semibold text-ink'
                     : 'inline-block border-b-2 border-transparent px-3 py-2 text-sm text-muted hover:text-ink'
                 }
               >

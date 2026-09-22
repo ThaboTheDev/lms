@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { readSession } from '@/lib/auth/session';
+import { PublicFrame } from '@/components/brand/public-frame';
 import { VerifyForm } from './verify-form';
 
 export const metadata: Metadata = { title: 'Confirm it is you' };
@@ -17,7 +18,7 @@ export default async function VerifyPage({
   const { next } = await searchParams;
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6">
+    <PublicFrame width="md" center>
       <h1 className="font-serif text-2xl font-semibold">Confirm it is you</h1>
       <p className="mt-2 text-sm text-muted">
         Enter the six digit code from your authenticator app. If you have lost your phone, one of
@@ -25,6 +26,6 @@ export default async function VerifyPage({
       </p>
 
       <VerifyForm next={next ?? '/dashboard'} />
-    </main>
+    </PublicFrame>
   );
 }

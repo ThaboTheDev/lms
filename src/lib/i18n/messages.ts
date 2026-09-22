@@ -4,7 +4,7 @@
  * institutions commonly need isiZulu, Sesotho and Afrikaans alongside English.
  */
 export const en = {
-  'app.name': 'Institutional LMS',
+  'app.name': 'MSRI',
   'auth.signIn': 'Sign in',
   'auth.email': 'Email address',
   'auth.password': 'Password',

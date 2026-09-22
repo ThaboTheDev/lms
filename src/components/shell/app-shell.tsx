@@ -8,7 +8,6 @@ import { Topbar } from './topbar';
 
 export function AppShell({
   groups,
-  institutionName,
   displayName,
   roleSummary,
   unreadNotifications,
@@ -16,7 +15,6 @@ export function AppShell({
   children,
 }: {
   groups: NavGroup[];
-  institutionName: string;
   displayName: string;
   roleSummary: string;
   unreadNotifications: number;
@@ -26,18 +24,18 @@ export function AppShell({
   const [navOpen, setNavOpen] = useState(false);
 
   return (
-    <div className="min-h-dvh lg:grid lg:grid-cols-[15rem_1fr]">
+    <div className="min-h-dvh lg:grid lg:grid-cols-[17.5rem_1fr]">
       <a href="#main" className="skip-link">
         Skip to main content
       </a>
 
       <div
         className={cn(
-          'fixed inset-y-0 left-0 z-30 w-60 bg-rail transition-transform lg:static lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-30 w-72 border-r-2 border-gold-bright bg-rail transition-transform lg:sticky lg:top-0 lg:z-auto lg:h-dvh lg:w-auto lg:translate-x-0',
           navOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <Sidebar groups={groups} institutionName={institutionName} />
+        <Sidebar groups={groups} />
       </div>
 
       {navOpen && (
@@ -45,7 +43,7 @@ export function AppShell({
           type="button"
           aria-label="Close navigation"
           onClick={() => setNavOpen(false)}
-          className="fixed inset-0 z-20 bg-rail/60 lg:hidden"
+          className="fixed inset-0 z-20 bg-navy/60 lg:hidden"
         />
       )}
 

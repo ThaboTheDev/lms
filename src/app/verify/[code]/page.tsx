@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { verifyCertificate } from '@/server/services/certificates';
 import { rateLimit } from '@/lib/rate-limit';
 import { hashIp } from '@/lib/crypto';
+import { PublicFrame } from '@/components/brand/public-frame';
 
 export const metadata: Metadata = {
   title: 'Certificate verification',
@@ -25,10 +26,10 @@ export default async function VerifyPage({ params }: { params: Promise<{ code: s
 
   if (!limit.allowed) {
     return (
-      <main className="mx-auto max-w-lg px-6 py-16">
+      <PublicFrame width="lg">
         <h1 className="font-serif text-2xl font-semibold">Too many checks</h1>
         <p className="mt-3 text-muted">Wait a few minutes and try again.</p>
-      </main>
+      </PublicFrame>
     );
   }
 
@@ -38,10 +39,10 @@ export default async function VerifyPage({ params }: { params: Promise<{ code: s
   });
 
   return (
-    <main className="mx-auto max-w-lg px-6 py-16">
+    <PublicFrame width="lg">
       {result.outcome === 'VALID' && result.certificate && (
         <>
-          <p className="inline-block border-l-2 border-brand pl-3 font-serif text-lg text-brand">
+          <p className="inline-block border-l-2 border-gold-ink pl-3 font-serif text-lg text-gold-ink">
             This certificate is valid
           </p>
           <h1 className="mt-4 font-serif text-3xl font-semibold">{result.certificate.title}</h1>
@@ -117,6 +118,6 @@ export default async function VerifyPage({ params }: { params: Promise<{ code: s
       <Link href="/verify" className="mt-8 inline-block text-accent underline underline-offset-2">
         Check another certificate
       </Link>
-    </main>
+    </PublicFrame>
   );
 }

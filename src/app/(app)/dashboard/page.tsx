@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { requirePrincipal } from '@/lib/auth/current-user';
 import { can } from '@/lib/rbac/authorize';
 import Link from 'next/link';
+import { BRAND } from '@/lib/brand';
 import { Panel, Tag } from '@/components/ui/primitives';
 import { listAnnouncements } from '@/server/services/announcements';
 import { upcomingForPrincipal } from '@/server/services/calendar';
@@ -49,19 +50,25 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-serif text-2xl font-semibold">Good day, {principal.displayName}</h1>
-        <p className="mt-1 text-sm text-muted">
+      <section className="overflow-hidden rounded-lg bg-navy px-6 py-7 text-white shadow-card">
+        <p className="eyebrow eyebrow-on-navy">
+          {BRAND.shortName} · Est. {BRAND.established}
+        </p>
+        <h1 className="band-title font-sans text-2xl font-bold text-white">
+          Good day, {principal.displayName}
+        </h1>
+        <p className="mt-1 text-sm text-slate-300">
           {new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
         </p>
-      </div>
+      </section>
 
       {metrics.length > 0 && (
-        <div className="grid gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {metrics.map((metric) => (
-            <div key={metric.label} className="bg-surface px-4 py-5">
-              <p className="text-sm text-muted">{metric.label}</p>
-              <p className="mt-1 font-serif text-3xl font-semibold tabular-nums">{metric.value}</p>
+            <div key={metric.label} className="relative overflow-hidden rounded-md border border-line bg-surface px-4 py-5 shadow-card">
+              <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-gold" />
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">{metric.label}</p>
+              <p className="mt-1 font-sans text-3xl font-bold tabular-nums text-gold-ink">{metric.value}</p>
             </div>
           ))}
         </div>

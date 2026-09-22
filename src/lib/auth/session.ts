@@ -16,6 +16,22 @@ function cookieOptions(expiresAt: Date) {
   };
 }
 
+/**
+ * Must match the options the session cookie was set with, including path.
+ * `cookies().delete(name)` omits the path, so the browser keeps the original
+ * cookie and the next request still looks signed in.
+ */
+export function sessionCookieClearOptions() {
+  return {
+    httpOnly: true,
+    secure: env.NODE_ENV === 'production',
+    sameSite: 'lax' as const,
+    path: '/',
+    maxAge: 0,
+    expires: new Date(0),
+  };
+}
+
 export interface ClientContext {
   ipAddress: string | null;
   userAgent: string | null;
@@ -119,7 +135,7 @@ export async function destroyCurrentSession() {
       data: { revokedAt: new Date() },
     });
   }
-  store.delete(SESSION_COOKIE);
+  store.set(SESSION_COOKIE, '', sessionCookieClearOptions());
 }
 
 /** Used after a password change or a suspected compromise. */

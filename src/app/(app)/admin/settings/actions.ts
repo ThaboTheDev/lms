@@ -43,8 +43,7 @@ export async function saveSettings(_prev: FormState, formData: FormData): Promis
     });
 
     // Colours and the institution name are read on every signed-in screen.
-    revalidatePath('/admin/settings');
-    revalidatePath('/dashboard');
+    revalidatePath('/', 'layout');
 
     return { status: 'success', message: 'Saved. The change is live from the next page load.' };
   } catch (error) {

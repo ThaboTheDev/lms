@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { getCurrentPrincipal } from '@/lib/auth/current-user';
 import { can } from '@/lib/rbac/authorize';
+import { institutionBrandStyle } from '@/lib/brand';
 import { NAVIGATION } from '@/components/shell/nav';
 import { AppShell } from '@/components/shell/app-shell';
 import { unreadNotificationCount } from '@/server/services/notifications';
@@ -16,7 +17,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
     principal.institutionId
       ? prisma.institution.findUnique({
           where: { id: principal.institutionId },
-          select: { name: true, primaryColour: true },
+          select: { name: true, primaryColour: true, secondaryColour: true },
         })
       : Promise.resolve(null),
     unreadNotificationCount(principal),
@@ -40,16 +41,19 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
         .map((key) => key.replace(/_/g, ' ').toLowerCase())
         .join(', ') || 'No role assigned';
 
+  const brandStyle = institutionBrandStyle(institution?.primaryColour, institution?.secondaryColour);
+
   return (
-    <AppShell
-      groups={groups}
-      institutionName={institution?.name ?? 'Platform administration'}
-      displayName={principal.displayName}
-      roleSummary={roleSummary}
-      unreadNotifications={unreadNotifications}
-      unreadMessages={unreadMessages}
-    >
-      {children}
-    </AppShell>
+    <div style={brandStyle}>
+      <AppShell
+        groups={groups}
+        displayName={principal.displayName}
+        roleSummary={roleSummary}
+        unreadNotifications={unreadNotifications}
+        unreadMessages={unreadMessages}
+      >
+        {children}
+      </AppShell>
+    </div>
   );
 }

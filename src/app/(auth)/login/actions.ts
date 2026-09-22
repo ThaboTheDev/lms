@@ -21,12 +21,28 @@ export interface LoginState {
   fieldErrors?: Partial<Record<'email' | 'password', string>>;
 }
 
-/**
- * Sign in. The same message is returned for an unknown address, a wrong
- * password and a deactivated account, so the form cannot be used to discover
- * which email addresses exist.
- */
+function isNextRedirect(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'digest' in error &&
+    String((error as { digest?: unknown }).digest).startsWith('NEXT_REDIRECT')
+  );
+}
+
 export async function signIn(_prev: LoginState, formData: FormData): Promise<LoginState> {
+  try {
+    return await attemptSignIn(formData);
+  } catch (error) {
+    // redirect() throws. Anything else is a store or runtime failure, and the
+    // form should say so rather than leave the person on an error page.
+    if (isNextRedirect(error)) throw error;
+    console.error('[auth] sign-in failed', error);
+    return { error: 'Sign in is unavailable right now. Try again in a few minutes.' };
+  }
+}
+
+async function attemptSignIn(formData: FormData): Promise<LoginState> {
   const parsed = schema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     const flat = parsed.error.flatten().fieldErrors;

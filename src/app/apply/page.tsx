@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/db';
 import { resolvePublicInstitution } from '@/server/services/tenancy';
+import { displayInstitutionName } from '@/lib/brand';
+import { PublicFrame } from '@/components/brand/public-frame';
 import { ApplicationForm } from './application-form';
 
 export const metadata: Metadata = { title: 'Apply to study' };
@@ -37,9 +39,9 @@ export default async function ApplyPage({
   ]);
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-12">
-      <p className="font-serif text-sm text-muted">{institution.name}</p>
-      <h1 className="mt-1 font-serif text-3xl font-semibold">Apply to study</h1>
+    <PublicFrame width="lg">
+      <h1 className="font-serif text-3xl font-semibold">Apply to study</h1>
+      <p className="mt-1 text-sm text-muted">{displayInstitutionName(institution.name)}</p>
       <p className="mt-2 max-w-prose text-muted">
         The form takes a few minutes. You will get a reference number when you send it,
         and we will email you as the application moves along.
@@ -50,6 +52,6 @@ export default async function ApplyPage({
         programmes={programmes}
         academicYears={academicYears}
       />
-    </main>
+    </PublicFrame>
   );
 }

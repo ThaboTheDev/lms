@@ -12,10 +12,10 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 // danger are dark in the light scheme and light in the dark one, so white text
 // on them stops being readable once the scheme flips.
 const buttonVariants = {
-  primary: 'bg-brand text-on-brand hover:bg-brand/90 disabled:bg-brand/50',
-  secondary: 'border border-line bg-surface text-ink hover:border-ink/40',
-  ghost: 'text-ink hover:bg-ink/5',
-  danger: 'bg-danger text-on-brand hover:bg-danger/90',
+  primary: 'bg-brand text-on-brand hover:brightness-95 disabled:bg-brand/50',
+  secondary: 'border border-line bg-surface text-ink hover:border-gold-ink',
+  ghost: 'text-ink hover:bg-navy/5',
+  danger: 'bg-danger text-on-danger hover:bg-danger/90',
 };
 
 export function Button({ className, variant = 'primary', size = 'md', ...props }: ButtonProps) {
@@ -23,7 +23,7 @@ export function Button({ className, variant = 'primary', size = 'md', ...props }
     <button
       {...props}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded font-medium transition-colors',
+        'inline-flex items-center justify-center gap-2 rounded font-semibold transition-colors',
         'disabled:cursor-not-allowed disabled:opacity-60',
         size === 'sm' ? 'h-8 px-3 text-sm' : 'h-10 px-4 text-sm',
         buttonVariants[variant],
@@ -86,7 +86,7 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
 
 const tagTones = {
   neutral: 'border-l-muted text-muted',
-  active: 'border-l-brand text-brand',
+  active: 'border-l-gold-ink text-gold-ink',
   caution: 'border-l-caution text-caution',
   danger: 'border-l-danger text-danger',
 };
@@ -130,11 +130,11 @@ export function Panel({
   className?: string;
 }) {
   return (
-    <section className={cn('border border-line bg-surface', className)}>
+    <section className={cn('overflow-hidden rounded-md border border-line border-t-2 border-t-gold bg-surface shadow-card', className)}>
       {(title || action) && (
         <header className="flex items-start justify-between gap-4 border-b border-line px-4 py-3">
           <div>
-            {title && <h2 className="font-serif text-base font-semibold text-ink">{title}</h2>}
+            {title && <h2 className="font-serif text-base font-semibold">{title}</h2>}
             {description && <p className="mt-0.5 text-sm text-muted">{description}</p>}
           </div>
           {action}

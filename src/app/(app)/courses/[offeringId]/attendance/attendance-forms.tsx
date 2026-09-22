@@ -135,7 +135,7 @@ export function CheckInForm({
 
   if (status === 'PRESENT' || status === 'LATE') {
     return (
-      <p className="border-l-2 border-brand bg-brand/5 px-4 py-3 text-sm text-brand">
+      <p className="border-l-2 border-gold-ink bg-gold/10 px-4 py-3 text-sm text-gold-ink">
         You are marked {status.toLowerCase()} for this session.
       </p>
     );

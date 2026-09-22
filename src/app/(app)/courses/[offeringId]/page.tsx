@@ -90,7 +90,7 @@ export default async function CoursePage({ params }: { params: Promise<{ offerin
             aria-valuemax={100}
             aria-label="Course progress"
           >
-            <div className="h-full bg-brand" style={{ width: `${outline.percentComplete}%` }} />
+            <div className="h-full bg-gold-ink" style={{ width: `${outline.percentComplete}%` }} />
           </div>
         </div>
       )}

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { readPasswordResetToken } from '@/server/services/password-reset';
+import { PublicFrame } from '@/components/brand/public-frame';
 import { ResetPasswordForm } from './reset-form';
 
 export const metadata: Metadata = { title: 'Choose a password' };
@@ -22,7 +23,7 @@ export default async function ResetPasswordPage({
   const isInvitation = account?.kind === 'invitation';
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6">
+    <PublicFrame width="md" center>
       <h1 className="font-serif text-2xl font-semibold">
         {isInvitation ? 'Set up your account' : 'Choose a new password'}
       </h1>
@@ -55,6 +56,6 @@ export default async function ResetPasswordPage({
           Back to sign in
         </Link>
       </p>
-    </main>
+    </PublicFrame>
   );
 }
