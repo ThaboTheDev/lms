@@ -21,7 +21,7 @@ services:
   # S3 compatible object storage for learning content, submissions and proof of
   # payment documents. Console on :9001, API on :9000.
   storage:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: lms
@@ -41,7 +41,7 @@ services:
     environment:
       DATABASE_URL: postgresql://lms:lms@db:5432/lms?schema=public
       REDIS_URL: redis://redis:6379
-      APP_URL: http://localhost:3000
+      APP_URL: https://qb05tg4c-3000.inc1.devtunnels.ms
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in your environment}
       STORAGE_DRIVER: s3
       S3_ENDPOINT: http://storage:9000
