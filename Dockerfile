@@ -15,6 +15,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
+# The application ships no static files of its own yet, but the runner copies
+# `public` out of this stage, and a COPY whose source does not exist fails the
+# build. Creating it here keeps that COPY working now, and correct the moment
+# somebody adds an asset.
+RUN mkdir -p public
+
 ENV NEXT_TELEMETRY_DISABLED=1
 # AUTH_SECRET is validated at import time; the build needs a value, never this one.
 ENV AUTH_SECRET=build-time-placeholder-value-not-used-at-runtime
