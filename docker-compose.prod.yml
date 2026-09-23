@@ -1,14 +1,40 @@
-# Production shape. Not a turnkey deployment: an institution will put the
-# database, object storage and TLS somewhere managed. This file shows what the
-# pieces are and how they talk to each other.
+# Production shape, sized for a 4 GB VPS that already runs another site
+# (Moodle on this host). Every service carries a mem_limit with a matching
+# memswap_limit, so the LMS cannot spill into swap and starve the other site.
+# This is not a turnkey deployment: object storage and SMTP stay managed, and
+# TLS terminates on the web server that already owns ports 80 and 443.
 #
 #   docker compose -f docker-compose.prod.yml up -d
+#
+# Never deploy docker-compose.yml: it is the local development stack, with
+# Postgres published on 5432 and development credentials.
+#
+# The stack refuses to boot until prisma/migrations exists: the migrate
+# service exits 1 when it finds no migration.sql, because an empty database
+# must not count as a successful start.
 
 services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
-    mem_limit: 512m   
+    mem_limit: 512m
+    memswap_limit: 512m   # equal to mem_limit: no swap allowance
+    shm_size: 128mb
+    # Sized for a 512 MB cgroup sharing the box with Moodle, not for a
+    # dedicated database server. max_connections=40 is the ceiling the
+    # application pools (DB_POOL, DB_POOL_WORKER, migrate) aim under.
+    command:
+      - postgres
+      - -c
+      - max_connections=40
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - effective_cache_size=256MB
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
@@ -21,13 +47,18 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    # Not published. Only the application and the backup job reach the database.
+    # Not published. Only the application, the migrate job and the backup job
+    # reach the database, all of them on the compose network.
 
   redis:
     image: redis:7-alpine
-    mem_limit: 128m   
+    mem_limit: 128m
+    memswap_limit: 128m   # equal to mem_limit: no swap allowance
     restart: unless-stopped
-    command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
+    # noeviction is required by the job queue: a cache policy would silently
+    # drop queued jobs. maxmemory 96mb sits under the 128m cgroup cap so the
+    # AOF and replication buffers fit inside it.
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory', '96mb', '--maxmemory-policy', 'noeviction']
     volumes:
       - redis-data:/data
     healthcheck:
@@ -36,18 +67,59 @@ services:
       timeout: 3s
       retries: 5
 
+  # One-shot: the only process allowed to touch the schema. It builds the
+  # worker image target (full source plus Prisma CLI); the web image is a
+  # Next.js standalone build and has neither. restart "no": a completed
+  # migration is success, not a service to keep running, and a failure must
+  # stay visible instead of restarting in a loop.
+  migrate:
+    build:
+      context: .
+      target: worker
+    restart: "no"
+    mem_limit: 400m
+    memswap_limit: 400m   # equal to mem_limit: no swap allowance
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      # connection_limit=1: a migration is serial; a pool here would only
+      # steal connections from the running app and worker.
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-lms}?schema=public&connection_limit=1
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        # Fail closed: with no committed migration there is no schema, and an
+        # empty database must not count as a successful start.
+        if [ -z "$(find prisma/migrations -name migration.sql -print -quit 2>/dev/null)" ]; then
+          echo '[migrate] prisma/migrations contains no migration.sql; refusing to start.' >&2
+          echo '[migrate] run `npx prisma migrate dev --name initial` on a machine with Postgres,' >&2
+          echo '[migrate] then commit prisma/migrations before deploying.' >&2
+          exit 1
+        fi
+        npx prisma migrate deploy
+        npx tsx scripts/sync-permissions.ts
+
   app:
     build:
       context: .
       target: runner
     restart: unless-stopped
-    mem_limit: 700m   
+    mem_limit: 700m
+    memswap_limit: 700m   # equal to mem_limit: no swap allowance
     depends_on:
+      migrate: { condition: service_completed_successfully }
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-lms}?schema=public&connection_limit=20
+      # The web image is a Next.js standalone build with no Prisma CLI: the
+      # migrate service owns the schema, so the entrypoint must not try.
+      RUN_MIGRATIONS: 'false'
+      SYNC_RBAC: 'false'
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-lms}?schema=public&connection_limit=${DB_POOL:-5}
       REDIS_URL: redis://redis:6379
       QUEUE_DRIVER: redis
       RATE_LIMIT_DRIVER: redis
@@ -59,30 +131,37 @@ services:
       S3_REGION: ${S3_REGION:-af-south-1}
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_FORCE_PATH_STYLE: "${S3_FORCE_PATH_STYLE:-true}"
       MAIL_DRIVER: smtp
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
-      MAIL_FROM: ${MAIL_FROM}
+      MAIL_FROM: "${MAIL_FROM}"
       MALWARE_SCANNER_URL: ${MALWARE_SCANNER_URL:-}
+      # PUBLIC_INSTITUTION_SLUG is deliberately not passed through: this
+      # deployment serves the single default institution. Add the key here
+      # only when a public form must pin one institution, and never with an
+      # empty value.
+    # Loopback only: the existing Apache or Nginx proxies learn.msri.online
+    # to this port. Nothing else on the box may reach the app directly.
     ports: ['127.0.0.1:3000:3000']
-    deploy:
-      resources:
-        limits: { memory: 1g }
 
   worker:
     build:
       context: .
       target: worker
     restart: unless-stopped
-    mem_limit: 400m   
+    mem_limit: 400m
+    memswap_limit: 400m   # equal to mem_limit: no swap allowance
     depends_on:
-      app: { condition: service_started }
+      # The queue consumer waits for the migration, not for the web process:
+      # a worker's lifecycle must not be coupled to an HTTP server's.
+      migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-lms}?schema=public&connection_limit=10
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-lms}?schema=public&connection_limit=${DB_POOL_WORKER:-3}
       REDIS_URL: redis://redis:6379
       QUEUE_DRIVER: redis
       APP_URL: ${APP_URL}
@@ -92,7 +171,7 @@ services:
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
-      MAIL_FROM: ${MAIL_FROM}
+      MAIL_FROM: "${MAIL_FROM}"
       # The worker runs no migrations: one process owns the schema.
       RUN_MIGRATIONS: 'false'
       SYNC_RBAC: 'false'
@@ -100,13 +179,18 @@ services:
   backup:
     image: postgres:16-alpine
     restart: unless-stopped
+    mem_limit: 256m
+    memswap_limit: 256m   # equal to mem_limit: no swap allowance
     depends_on:
       db: { condition: service_healthy }
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_DB: ${POSTGRES_DB:-lms}
-      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-35}
+      # 7 days on this disk only. Dumps MUST be copied off this machine
+      # (rclone, S3, scp): a 50 GB disk shared with Moodle cannot keep 35
+      # days of dumps. Raise this only after the copies are leaving the VPS.
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
     volumes:
       - ./backups:/backups
       - ./scripts/backup.sh:/usr/local/bin/backup.sh:ro
