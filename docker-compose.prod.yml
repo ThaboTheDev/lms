@@ -8,6 +8,7 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    mem_limit: 512m   
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
@@ -24,6 +25,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    mem_limit: 128m   
     restart: unless-stopped
     command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
     volumes:
@@ -39,6 +41,7 @@ services:
       context: .
       target: runner
     restart: unless-stopped
+    mem_limit: 700m   
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -73,6 +76,7 @@ services:
       context: .
       target: worker
     restart: unless-stopped
+    mem_limit: 400m   
     depends_on:
       app: { condition: service_started }
       redis: { condition: service_healthy }
