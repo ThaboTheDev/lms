@@ -106,6 +106,8 @@ services:
     build:
       context: .
       target: runner
+      args:
+        S3_ENDPOINT: ${S3_ENDPOINT:-}
     restart: unless-stopped
     mem_limit: 700m
     memswap_limit: 700m   # equal to mem_limit: no swap allowance
@@ -126,7 +128,7 @@ services:
       APP_URL: ${APP_URL:?set APP_URL}
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET}
       STORAGE_DRIVER: s3
-      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_ENDPOINT: "${S3_ENDPOINT:?set S3_ENDPOINT (AWS: https://s3.af-south-1.amazonaws.com)}"
       S3_BUCKET: ${S3_BUCKET}
       S3_REGION: ${S3_REGION:-af-south-1}
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
