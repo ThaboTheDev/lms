@@ -1,19 +1,31 @@
 /** @type {import('next').NextConfig} */
 
+// Next bakes headers into the build; changing this endpoint requires a rebuild.
+function storageOrigins() {
+  const raw = process.env.S3_ENDPOINT;
+  if (!raw) return [];
+  try {
+    return [new URL(raw).origin];
+  } catch {
+    return [];
+  }
+}
+const storage = storageOrigins();
+
 /**
  * Content security policy. 'unsafe-inline' on styles is needed because the
  * design system sets custom properties inline for per-institution branding;
- * scripts carry no such exception. Everything else is locked to the origin,
- * because this application has no reason to load anything from anywhere else.
+ * scripts carry no such exception. Other sources stay locked to the app origin,
+ * except for direct uploads and image/media previews at the storage origin.
  */
 const contentSecurityPolicy = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "media-src 'self' blob:",
+  ["img-src 'self' data: blob:", ...storage].join(" "),
+  ["media-src 'self' blob:", ...storage].join(" "),
   "font-src 'self' data:",
-  "connect-src 'self'",
+  ["connect-src 'self'", ...storage].join(" "),
   "frame-ancestors 'none'",
   "form-action 'self'",
   "base-uri 'self'",

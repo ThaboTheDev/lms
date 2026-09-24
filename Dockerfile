@@ -26,6 +26,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # AUTH_SECRET is validated at import time; the build needs a value, never this one.
 ENV AUTH_SECRET=build-time-placeholder-value-not-used-at-runtime
 ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
+ARG S3_ENDPOINT=
+ENV S3_ENDPOINT=${S3_ENDPOINT}
 RUN npx prisma generate && npm run build
 
 # --- runtime: web -----------------------------------------------------------
