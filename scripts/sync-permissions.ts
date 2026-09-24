@@ -3,9 +3,9 @@
  * Safe to run on every deploy: it adds new keys, updates descriptions and
  * re-attaches role permissions without touching custom roles.
  */
-import { PrismaClient } from '@prisma/client';
-import { PERMISSIONS } from '../src/lib/rbac/permissions';
-import { SYSTEM_ROLES } from '../src/lib/rbac/roles';
+import { PrismaClient } from "@prisma/client";
+import { PERMISSIONS } from "../src/lib/rbac/permissions";
+import { SYSTEM_ROLES } from "../src/lib/rbac/roles";
 
 const prisma = new PrismaClient();
 
@@ -20,13 +20,34 @@ async function main() {
   console.log(`permissions synced: ${Object.keys(PERMISSIONS).length}`);
 
   for (const role of SYSTEM_ROLES) {
-    const record = await prisma.role.upsert({
-      where: { institutionId_key: { institutionId: null as never, key: role.key } },
-      create: { key: role.key, name: role.name, description: role.description, isSystem: true },
-      update: { name: role.name, description: role.description, isSystem: true },
+    // System roles belong to no institution, so their key is (NULL, key) -
+    // and Prisma refuses null inside a compound-unique upsert: every field of
+    // a compound unique must be non-null, and `null as never` only silenced
+    // the type checker, not the runtime validator. Find first, then update or
+    // create - the same shape roles.ts already uses for institution roles.
+    const existing = await prisma.role.findFirst({
+      where: { institutionId: null, key: role.key },
+      select: { id: true },
     });
+    const record = existing
+      ? await prisma.role.update({
+          where: { id: existing.id },
+          data: {
+            name: role.name,
+            description: role.description,
+            isSystem: true,
+          },
+        })
+      : await prisma.role.create({
+          data: {
+            key: role.key,
+            name: role.name,
+            description: role.description,
+            isSystem: true,
+          },
+        });
 
-    if (role.permissions === '*') continue;
+    if (role.permissions === "*") continue;
 
     const permissions = await prisma.permission.findMany({
       where: { key: { in: [...role.permissions] } },
