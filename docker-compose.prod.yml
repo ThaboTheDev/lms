@@ -117,6 +117,7 @@ services:
       redis: { condition: service_healthy }
     environment:
       NODE_ENV: production
+      HOSTNAME: "0.0.0.0"
       # The web image is a Next.js standalone build with no Prisma CLI: the
       # migrate service owns the schema, so the entrypoint must not try.
       RUN_MIGRATIONS: 'false'
@@ -163,6 +164,7 @@ services:
       redis: { condition: service_healthy }
     environment:
       NODE_ENV: production
+      NODE_OPTIONS: "--conditions=react-server"
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-lms}?schema=public&connection_limit=${DB_POOL_WORKER:-3}
       REDIS_URL: redis://redis:6379
       QUEUE_DRIVER: redis
