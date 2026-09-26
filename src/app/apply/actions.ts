@@ -5,6 +5,7 @@ import { applicationSubmissionSchema } from '@/lib/validation/application';
 import { toFieldErrors, type FormState } from '@/lib/validation/common';
 import { submitApplication } from '@/server/services/admissions';
 import { resolvePublicInstitution } from '@/server/services/tenancy';
+import { requestHost } from '@/server/services/branding';
 import { rateLimit } from '@/lib/rate-limit';
 import { readClientContext } from '@/lib/auth/session';
 import { hashIp } from '@/lib/crypto';
@@ -34,7 +35,10 @@ export async function applyNow(_prev: FormState, formData: FormData): Promise<Fo
     };
   }
 
-  const institution = await resolvePublicInstitution(String(formData.get('institutionSlug') ?? '') || undefined);
+  const institution = await resolvePublicInstitution(
+    String(formData.get('institutionSlug') ?? '') || undefined,
+    await requestHost(),
+  );
 
   let reference: string;
   try {

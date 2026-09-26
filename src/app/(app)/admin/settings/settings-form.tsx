@@ -29,6 +29,7 @@ export interface SettingsValues {
   currency: string;
   certificatePrefix: string;
   footerText: string;
+  domain: string;
 }
 
 function Submit() {
@@ -63,6 +64,13 @@ export function SettingsForm({ values }: { values: SettingsValues }) {
 
           <Field label="Accreditation number" htmlFor="accreditationNo">
             <Input id="accreditationNo" name="accreditationNo" defaultValue={values.accreditationNo} maxLength={60} />
+          </Field>
+          <Field
+            label="Public web address"
+            htmlFor="domain"
+            hint="The host name the sign-in and application pages answer on for this institution, such as learn.example.ac.za. Leave blank on a one-institution system."
+          >
+            <Input id="domain" name="domain" defaultValue={values.domain} maxLength={253} placeholder="learn.example.ac.za" className="font-mono" />
           </Field>
         </div>
       </Panel>

@@ -14,6 +14,7 @@ const PUBLIC_PATHS = [
   '/api/v1/auth/sign-out', // must run even when the cookie is already gone
   '/api/v1/badges',   // public Open Badges assertions for issued credentials
   '/api/v1/packages', // SCORM and H5P files: the signed token in the path is the credential
+  '/api/v1/branding', // the institution's logo, shown on the sign-in page
 ];
 
 function contentSecurityPolicy(nonce: string) {

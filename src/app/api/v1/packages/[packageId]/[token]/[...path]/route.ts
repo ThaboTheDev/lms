@@ -85,6 +85,9 @@ function h5pPlayerScript(base: string): string {
     h5pJsonPath: base,
     frameJs: base + '/__lms/vendor/frame.bundle.js',
     frameCss: base + '/__lms/vendor/styles/h5p.css',
+    // Rendered straight into this page: the player's usual child frame would
+    // get an origin of its own inside the sandbox, and it could not write to it.
+    embedType: 'div',
     frame: false, copyright: false, export: false, embed: false, icon: false, fullScreen: true
   }).then(function () {
     H5P.externalDispatcher.on('xAPI', function (event) {

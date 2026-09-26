@@ -6,6 +6,9 @@ import { queue } from '@/lib/queue';
 import type { Principal } from '@/lib/rbac/authorize';
 import {
   resolveChannels,
+  digestContent,
+  digestDue,
+  waitsForDigest,
   type AudienceSpec,
   type Channel,
   type NotificationType,
@@ -66,7 +69,7 @@ export async function deliverNotificationEmail(input: NotifyInput) {
   const [user, institution, template] = await Promise.all([
     prisma.user.findUnique({
       where: { id: input.userId },
-      select: { email: true, firstName: true, status: true },
+      select: { email: true, firstName: true, status: true, digestFrequency: true },
     }),
     input.institutionId
       ? prisma.institution.findUnique({
@@ -83,6 +86,8 @@ export async function deliverNotificationEmail(input: NotifyInput) {
   ]);
 
   if (!user || user.status !== 'ACTIVE') return;
+  // Someone who asked for a summary gets this in it, unless it cannot wait.
+  if (waitsForDigest(user.digestFrequency, input.type)) return;
 
   const variables = {
     firstName: user.firstName,
@@ -107,6 +112,7 @@ export async function deliverNotificationEmail(input: NotifyInput) {
         institution?.footerText ?? undefined,
       );
 
+  await markEmailed(input.userId, input.type, input.title);
   await mailer.send({
     to: user.email,
     subject,
@@ -117,6 +123,82 @@ export async function deliverNotificationEmail(input: NotifyInput) {
         ? `${institution.emailFromName} <${institution.emailFromAddress}>`
         : undefined,
   });
+}
+
+/** Records that a notice went out by email, so a digest does not send it again. */
+async function markEmailed(userId: string, type: string, title: string) {
+  await prisma.notification.updateMany({
+    where: { userId, type, title, emailedAt: null, createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+    data: { emailedAt: new Date() },
+  });
+}
+
+/**
+ * Sends one person's digest if it is due: the unread notices that were not
+ * emailed on their own, as one message. Returns how many it listed.
+ */
+export async function sendDigest(userId: string, at = new Date()): Promise<number> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true, firstName: true, status: true, digestFrequency: true, lastDigestAt: true, institutionId: true },
+  });
+  if (!user || user.status !== 'ACTIVE' || user.digestFrequency === 'OFF') return 0;
+  const { due, since } = digestDue(user.digestFrequency, user.lastDigestAt, at);
+  if (!due) return 0;
+
+  const [pending, preferences, institution] = await Promise.all([
+    prisma.notification.findMany({
+      where: { userId, emailedAt: null, readAt: null, createdAt: { gt: since } },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      select: { id: true, type: true, title: true, body: true, linkUrl: true, createdAt: true },
+    }),
+    prisma.notificationPreference.findMany({ where: { userId }, select: { type: true, inApp: true, email: true, sms: true, push: true } }),
+    user.institutionId
+      ? prisma.institution.findUnique({
+          where: { id: user.institutionId },
+          select: { name: true, emailFromAddress: true, emailFromName: true, footerText: true },
+        })
+      : Promise.resolve(null),
+  ]);
+  // Only notices this person would have been emailed about.
+  const byType = new Map(preferences.map((row) => [row.type, row]));
+  const items = pending.filter((item) => {
+    const preference = byType.get(item.type);
+    return resolveChannels(item.type as NotifyInput['type'], preference ? { ...preference, type: item.type as NotifyInput['type'] } : null).includes('EMAIL');
+  });
+
+  await prisma.user.update({ where: { id: userId }, data: { lastDigestAt: at } });
+  if (items.length === 0) return 0;
+
+  const name = institution?.name ?? env.APP_NAME;
+  const content = digestContent(items, user.digestFrequency, name);
+  const list = content.lines
+    .map(
+      (line) => `<li style="margin:0 0 12px">
+        <strong>${escapeHtml(line.title)}</strong>${line.body ? `<br><span style="color:#555">${escapeHtml(line.body)}</span>` : ''}
+        ${line.linkUrl ? `<br><a href="${env.APP_URL}${line.linkUrl}" style="color:#0e5c4a">Open</a>` : ''}
+      </li>`,
+    )
+    .join('');
+  await mailer.send({
+    to: user.email,
+    subject: content.subject,
+    html: wrapEmail(
+      name,
+      `Hello ${escapeHtml(user.firstName)}, here is what happened`,
+      `<ul style="padding-left:18px;margin:0">${list}</ul>${content.more ? `<p>And ${content.more} more in the platform.</p>` : ''}
+       <p style="margin:16px 0 0;font-size:13px;color:#555">You get one summary ${user.digestFrequency === 'DAILY' ? 'a day' : 'a week'}. Change that under Account and security.</p>`,
+      institution?.footerText ?? undefined,
+    ),
+    text: content.lines.map((line) => `- ${line.title}${line.body ? `: ${line.body}` : ''}`).join('\n'),
+    from:
+      institution?.emailFromAddress && institution.emailFromName
+        ? `${institution.emailFromName} <${institution.emailFromAddress}>`
+        : undefined,
+  });
+  await prisma.notification.updateMany({ where: { id: { in: items.map((item) => item.id) } }, data: { emailedAt: at } });
+  return items.length;
 }
 
 /**

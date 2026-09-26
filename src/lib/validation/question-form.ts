@@ -42,8 +42,9 @@ export function optionsForType(type: string, fields: QuestionFormFields): Questi
     const raw = fields.correctValue?.trim() || fields.options?.trim() || '';
     const first = raw.split('\n').map((line) => line.trim()).find(Boolean);
     if (!first) return [];
-    const value = first.endsWith('*') ? first.slice(0, -1).trim() : first;
-    return [{ content: value, isCorrect: true }];
+    const value = (first.endsWith('*') ? first.slice(0, -1).trim() : first).replace(/\s/g, '');
+    // A decimal comma, as learners may answer with too.
+    return [{ content: /^-?\d+,\d+$/.test(value) ? value.replace(',', '.') : value, isCorrect: true }];
   }
 
   return [];

@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import { cn } from '@/lib/cn';
 import { BrandMark } from './mark';
+import { publicBrand } from '@/server/services/branding';
 
 /**
  * The public pages share the institute's header: navy bar, crest, a gold rule.
  * Authenticated screens have their own shell and do not use this.
  */
-export function PublicFrame({
+export async function PublicFrame({
   children,
   width = 'prose',
   center = false,
@@ -19,13 +20,14 @@ export function PublicFrame({
   showApply?: boolean;
 }) {
   const max = width === 'lg' ? 'max-w-2xl' : width === 'md' ? 'max-w-sm' : 'max-w-prose';
+  const brand = await publicBrand();
 
   return (
     <div className="flex min-h-dvh flex-col bg-paper">
       <header className="bg-navy text-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-4">
           <Link href="/login" className="rounded-md">
-            <BrandMark size="sm" />
+            <BrandMark size="sm" brand={brand} />
           </Link>
           {showApply && (
             <Link href="/apply" className="text-sm font-semibold text-gold-bright hover:underline">

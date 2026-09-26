@@ -62,15 +62,20 @@ const nextConfig = {
       },
       {
         // Nothing behind authentication should ever be cached by a proxy.
-        source: "/api/:path*",
+        // Package files are left out: their route sets caching per file (a
+        // header set here would override the route's own).
+        source: "/api/:path((?!v1/packages/).*)",
         headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }],
       },
       {
         // SCORM and H5P packages are framed by this site's own lesson pages
-        // (inside a sandbox, with the route's own policy and caching), so this
-        // origin may frame them.
+        // (inside a sandbox, with the route's own policy), so this origin may
+        // frame them. Their URLs carry a token: never send them as a referrer.
         source: "/api/v1/packages/:path*",
-        headers: isProduction ? [{ key: "X-Frame-Options", value: "SAMEORIGIN" }] : [],
+        headers: [
+          { key: "Referrer-Policy", value: "no-referrer" },
+          ...(isProduction ? [{ key: "X-Frame-Options", value: "SAMEORIGIN" }] : []),
+        ],
       },
     ];
   },

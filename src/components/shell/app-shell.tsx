@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { cn } from '@/lib/cn';
 import type { NavGroup } from './nav';
 import { Sidebar } from './sidebar';
-import { Topbar } from './topbar';
+import { Topbar, type ShellLabels } from './topbar';
 
 export function AppShell({
   groups,
@@ -12,8 +12,14 @@ export function AppShell({
   roleSummary,
   unreadNotifications,
   unreadMessages,
+  brand,
+  labels,
+  locale = 'en',
   children,
 }: {
+  brand?: { logoUrl: string | null; shortName: string; name: string };
+  labels: ShellLabels;
+  locale?: string;
   groups: NavGroup[];
   displayName: string;
   roleSummary: string;
@@ -24,9 +30,9 @@ export function AppShell({
   const [navOpen, setNavOpen] = useState(false);
 
   return (
-    <div className="min-h-dvh lg:grid lg:grid-cols-[17.5rem_1fr] print:block">
+    <div lang={locale} className="min-h-dvh lg:grid lg:grid-cols-[17.5rem_1fr] print:block">
       <a href="#main" className="skip-link">
-        Skip to main content
+        {labels.skip}
       </a>
 
       <div
@@ -36,13 +42,13 @@ export function AppShell({
           navOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <Sidebar groups={groups} />
+        <Sidebar groups={groups} brand={brand} signOutLabel={labels.signOut} />
       </div>
 
       {navOpen && (
         <button
           type="button"
-          aria-label="Close navigation"
+          aria-label={labels.closeNav}
           onClick={() => setNavOpen(false)}
           className="fixed inset-0 z-20 bg-navy/60 lg:hidden"
         />
@@ -54,6 +60,7 @@ export function AppShell({
           roleSummary={roleSummary}
           unreadNotifications={unreadNotifications}
           unreadMessages={unreadMessages}
+          labels={labels}
           onToggleNav={() => setNavOpen((open) => !open)}
         />
         <main id="main" className="flex-1 px-4 py-6 sm:px-6 lg:px-8">

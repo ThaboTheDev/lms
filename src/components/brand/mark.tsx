@@ -2,14 +2,33 @@ import Image from 'next/image';
 import { BRAND } from '@/lib/brand';
 import { cn } from '@/lib/cn';
 
-/** The institute crest. Local file, already the right size, so no remote loader. */
+/**
+ * The institution's logo when it has uploaded one, otherwise the built-in
+ * crest (a local file, already the right size, so no remote loader).
+ */
 export function Crest({
   size = 48,
   className,
+  logoUrl,
 }: {
   size?: number;
   className?: string;
+  logoUrl?: string | null;
 }) {
+  if (logoUrl) {
+    return (
+      // Not next/image: the logo is served by this app's own route, already small.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={logoUrl}
+        alt=""
+        width={size}
+        height={size}
+        className={cn('rounded-md bg-white object-contain p-0.5', className)}
+        style={{ width: size, height: size }}
+      />
+    );
+  }
   return (
     <Image
       src="/branding/msri-logo.png"
@@ -30,15 +49,20 @@ export function BrandMark({
   tone = 'onNavy',
   size = 'md',
   showFullName = true,
+  brand,
 }: {
   tone?: 'onNavy' | 'onLight';
   size?: 'sm' | 'md';
   showFullName?: boolean;
+  /** The institution's own logo and names; the built-in brand when absent. */
+  brand?: { logoUrl: string | null; shortName: string; name: string };
 }) {
   const crest = size === 'sm' ? 40 : 52;
+  const shortName = brand?.shortName ?? BRAND.shortName;
+  const name = brand?.name ?? BRAND.name;
   return (
     <span className="flex min-w-0 items-center gap-3">
-      <Crest size={crest} className="shrink-0" />
+      <Crest size={crest} className="shrink-0" logoUrl={brand?.logoUrl} />
       <span className="min-w-0">
         <span
           className={cn(
@@ -46,7 +70,7 @@ export function BrandMark({
             tone === 'onNavy' ? 'text-white' : 'text-navy',
           )}
         >
-          {BRAND.shortName}
+          {shortName}
         </span>
         {showFullName ? (
           <span
@@ -55,7 +79,7 @@ export function BrandMark({
               tone === 'onNavy' ? 'text-gold-bright' : 'text-gold-ink',
             )}
           >
-            {BRAND.name}
+            {name}
           </span>
         ) : (
           <span

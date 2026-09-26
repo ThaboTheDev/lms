@@ -81,3 +81,28 @@ describe('EMBED_ALLOWED_ORIGINS and the policy', () => {
     expect(policy).toContain("frame-src 'self'");
   });
 });
+
+describe('certificate templates', async () => {
+  const { renderTemplate, DEFAULT_TEMPLATE } = await import('@/lib/certificates/template');
+  const values = { '{{name}}': 'Lerato Mokoena', '{{title}}': 'Higher Certificate in Business Management', '{{nqf}}': '5', '{{completed}}': '30 November 2026' };
+
+  it('prints the default wording with the name and award emphasised', () => {
+    expect(renderTemplate(null, values)).toEqual([
+      { text: 'This is to certify that', emphasis: 'plain' },
+      { text: 'Lerato Mokoena', emphasis: 'name' },
+      { text: 'has been awarded', emphasis: 'plain' },
+      { text: 'Higher Certificate in Business Management', emphasis: 'award' },
+    ]);
+    expect(renderTemplate(DEFAULT_TEMPLATE, values)).toHaveLength(4);
+  });
+
+  it('fills placeholders inside lines, removes markup instead of interpreting it, and drops empty lines', () => {
+    const lines = renderTemplate('<p>Awarded to</p>{{name}}<br>at NQF level {{nqf}}<script>alert(1)</script>\n{{credits}}', values);
+    expect(lines.map((line) => line.text)).toEqual(['Awarded to', 'Lerato Mokoena', 'at NQF level 5alert(1)']);
+    expect(lines.some((line) => line.text.includes('<'))).toBe(false);
+  });
+
+  it('leaves unknown placeholders visible so a typo is noticed on the preview', () => {
+    expect(renderTemplate('Dear {{nmae}}', values)[0]!.text).toBe('Dear {{nmae}}');
+  });
+});

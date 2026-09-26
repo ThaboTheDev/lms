@@ -220,6 +220,7 @@ describe('question form: options come only from the fields the type uses', () =>
     expect(optionsForType('NUMERICAL', { correctValue: '3.14' })).toEqual([{ content: '3.14', isCorrect: true }]);
     expect(optionsForType('NUMERICAL', { correctValue: '', options: '2.5*' })).toEqual([{ content: '2.5', isCorrect: true }]);
     expect(optionsForType('NUMERICAL', {})).toEqual([]);
+    expect(optionsForType('NUMERICAL', { correctValue: '2,5' })).toEqual([{ content: '2.5', isCorrect: true }]);
   });
 
   it('ignores the options box for types that do not use it', () => {

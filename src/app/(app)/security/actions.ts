@@ -110,10 +110,16 @@ export async function changePassword(_prev: FormState, formData: FormData): Prom
 export async function saveProfile(_prev: FormState, formData: FormData): Promise<FormState> {
   const principal = await requirePrincipal();
   try {
-    await updateOwnProfile(principal, { preferredName: String(formData.get('preferredName') ?? ''), phone: String(formData.get('phone') ?? '') });
+    await updateOwnProfile(principal, {
+      preferredName: String(formData.get('preferredName') ?? ''),
+      phone: String(formData.get('phone') ?? ''),
+      locale: String(formData.get('locale') ?? ''),
+      digestFrequency: String(formData.get('digestFrequency') ?? 'OFF'),
+    });
   } catch (error) {
     return accountFailure(error);
   }
-  revalidatePath('/security');
+  // The language shows on every screen.
+  revalidatePath('/', 'layout');
   return { status: 'success', message: 'Saved.' };
 }

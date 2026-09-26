@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { requirePrincipal } from '@/lib/auth/current-user';
 import { AppError } from '@/lib/errors';
-import { updateInstitutionSettings } from '@/server/services/institution-settings';
+import { setInstitutionLogo, updateInstitutionSettings } from '@/server/services/institution-settings';
 import type { FormState } from '@/lib/validation/common';
 
 /**
@@ -40,6 +40,7 @@ export async function saveSettings(_prev: FormState, formData: FormData): Promis
       currency: text(formData, 'currency'),
       certificatePrefix: text(formData, 'certificatePrefix'),
       footerText: text(formData, 'footerText'),
+      domain: text(formData, 'domain'),
     });
 
     // Colours and the institution name are read on every signed-in screen.
@@ -50,4 +51,19 @@ export async function saveSettings(_prev: FormState, formData: FormData): Promis
     if (error instanceof AppError) return { status: 'error', message: error.message };
     throw error;
   }
+}
+
+export async function saveLogo(_prev: FormState, formData: FormData): Promise<FormState> {
+  const principal = await requirePrincipal();
+  const remove = formData.get('remove') === '1';
+  const fileId = text(formData, 'logoFileId');
+  if (!remove && !fileId) return { status: 'error', message: 'Choose an image to upload first.' };
+  try {
+    await setInstitutionLogo(principal, remove ? null : fileId);
+  } catch (error) {
+    if (error instanceof AppError) return { status: 'error', message: error.message };
+    throw error;
+  }
+  revalidatePath('/', 'layout');
+  return { status: 'success', message: remove ? 'Logo removed; the built-in crest is back.' : 'Logo saved. It shows from the next page load.' };
 }

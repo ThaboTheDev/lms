@@ -1,14 +1,27 @@
 import type { Route } from 'next';
 import type { PermissionKey } from '@/lib/rbac/permissions';
+import type { MessageKey } from '@/lib/i18n/messages';
 
-export interface NavItem {
-  label: string;
+export interface NavItemDefinition {
+  /** Translated per viewer: see src/lib/i18n/messages.ts. */
+  labelKey: MessageKey;
   /** Typed, so a rail pointing at a page that was never built fails the build. */
   href: Route;
   /** The item appears only if the user holds at least one of these. */
   permissions?: PermissionKey[];
   /** Require the permission institution-wide; a grant for one course is not enough. */
   institutionWide?: boolean;
+}
+
+export interface NavGroupDefinition {
+  labelKey: MessageKey;
+  items: NavItemDefinition[];
+}
+
+/** What the rail renders: labels already in the viewer's language. */
+export interface NavItem {
+  label: string;
+  href: Route;
 }
 
 export interface NavGroup {
@@ -20,67 +33,68 @@ export interface NavGroup {
  * Navigation is derived from permissions, so a finance officer and a lecturer
  * see different rails without any role checks scattered through components.
  */
-export const NAVIGATION: NavGroup[] = [
+export const NAVIGATION: NavGroupDefinition[] = [
   {
-    label: 'Overview',
+    labelKey: 'nav.group.overview',
     items: [
-      { label: 'Dashboard', href: '/dashboard' },
-      { label: 'Search', href: '/search' },
-      { label: 'Account and security', href: '/security' },
+      { labelKey: 'nav.dashboard', href: '/dashboard' },
+      { labelKey: 'nav.search', href: '/search' },
+      { labelKey: 'nav.security', href: '/security' },
     ],
   },
   {
-    label: 'Learning',
+    labelKey: 'nav.group.learning',
     items: [
-      { label: 'My courses', href: '/courses', permissions: ['course.read'] },
-      { label: 'Assessments', href: '/assessments', permissions: ['assessment.read'] },
-      { label: 'Question banks', href: '/question-banks', permissions: ['question_bank.read'] },
-      { label: 'Content library', href: '/content', permissions: ['content.read'] },
-      { label: 'Calendar', href: '/calendar' },
-      { label: 'Discussions', href: '/discussions' },
-      { label: 'Your account', href: '/account', permissions: ['pop.submit'] },
+      { labelKey: 'nav.courses', href: '/courses', permissions: ['course.read'] },
+      { labelKey: 'nav.assessments', href: '/assessments', permissions: ['assessment.read'] },
+      { labelKey: 'nav.questionBanks', href: '/question-banks', permissions: ['question_bank.read'] },
+      { labelKey: 'nav.content', href: '/content', permissions: ['content.read'] },
+      { labelKey: 'nav.calendar', href: '/calendar' },
+      { labelKey: 'nav.discussions', href: '/discussions' },
+      { labelKey: 'nav.account', href: '/account', permissions: ['pop.submit'] },
     ],
   },
   {
-    label: 'Communication',
+    labelKey: 'nav.group.communication',
     items: [
-      { label: 'Messages', href: '/messages' },
-      { label: 'Announcements', href: '/announcements' },
-      { label: 'Notifications', href: '/notifications' },
+      { labelKey: 'nav.messages', href: '/messages' },
+      { labelKey: 'nav.announcements', href: '/announcements' },
+      { labelKey: 'nav.notifications', href: '/notifications' },
     ],
   },
   {
-    label: 'Academic administration',
+    labelKey: 'nav.group.academic',
     items: [
-      { label: 'Students', href: '/students', permissions: ['student.read'], institutionWide: true },
-      { label: 'Applications', href: '/admissions', permissions: ['application.read'] },
-      { label: 'Programmes', href: '/programmes', permissions: ['programme.read'] },
-      { label: 'Academic records', href: '/records', permissions: ['academic_record.read'] },
-      { label: 'Certificates', href: '/certificates', permissions: ['certificate.read'] },
+      { labelKey: 'nav.students', href: '/students', permissions: ['student.read'], institutionWide: true },
+      { labelKey: 'nav.applications', href: '/admissions', permissions: ['application.read'] },
+      { labelKey: 'nav.programmes', href: '/programmes', permissions: ['programme.read'] },
+      { labelKey: 'nav.records', href: '/records', permissions: ['academic_record.read'] },
+      { labelKey: 'nav.certificates', href: '/certificates', permissions: ['certificate.read'] },
+      { labelKey: 'nav.certificateTemplates', href: '/admin/certificate-templates', permissions: ['certificate.issue'] },
     ],
   },
   {
-    label: 'Operations',
+    labelKey: 'nav.group.operations',
     items: [
-      { label: 'Finance', href: '/finance', permissions: ['finance.read'] },
-      { label: 'Fees', href: '/finance/fees', permissions: ['finance.manage'] },
-      { label: 'Proof of payment', href: '/finance/proof-of-payment', permissions: ['pop.review'] },
-      { label: 'Quality assurance', href: '/quality', permissions: ['qa.manage', 'moderation.perform'] },
-      { label: 'Reports', href: '/reports', permissions: ['report.read'] },
-      { label: 'Analytics', href: '/analytics', permissions: ['analytics.read'] },
-      { label: 'Support', href: '/support', permissions: ['ticket.read'] },
+      { labelKey: 'nav.finance', href: '/finance', permissions: ['finance.read'] },
+      { labelKey: 'nav.fees', href: '/finance/fees', permissions: ['finance.manage'] },
+      { labelKey: 'nav.pop', href: '/finance/proof-of-payment', permissions: ['pop.review'] },
+      { labelKey: 'nav.quality', href: '/quality', permissions: ['qa.manage', 'moderation.perform'] },
+      { labelKey: 'nav.reports', href: '/reports', permissions: ['report.read'] },
+      { labelKey: 'nav.analytics', href: '/analytics', permissions: ['analytics.read'] },
+      { labelKey: 'nav.support', href: '/support', permissions: ['ticket.read'] },
     ],
   },
   {
-    label: 'Administration',
+    labelKey: 'nav.group.administration',
     items: [
-      { label: 'Academic setup', href: '/admin/academic', permissions: ['programme.manage', 'course.manage', 'settings.manage', 'enrolment.manage'] },
-      { label: 'People and access', href: '/admin/users', permissions: ['user.read'] },
-      { label: 'Roles', href: '/admin/roles', permissions: ['role.read'] },
-      { label: 'Audit log', href: '/admin/audit', permissions: ['audit.read'] },
-      { label: 'Privacy and retention', href: '/admin/privacy', permissions: ['settings.manage'] },
-      { label: 'Settings', href: '/admin/settings', permissions: ['settings.manage'] },
-      { label: 'Email templates', href: '/admin/email-templates', permissions: ['settings.manage'] },
+      { labelKey: 'nav.academicSetup', href: '/admin/academic', permissions: ['programme.manage', 'course.manage', 'settings.manage', 'enrolment.manage'] },
+      { labelKey: 'nav.people', href: '/admin/users', permissions: ['user.read'] },
+      { labelKey: 'nav.roles', href: '/admin/roles', permissions: ['role.read'] },
+      { labelKey: 'nav.audit', href: '/admin/audit', permissions: ['audit.read'] },
+      { labelKey: 'nav.privacy', href: '/admin/privacy', permissions: ['settings.manage'] },
+      { labelKey: 'nav.settings', href: '/admin/settings', permissions: ['settings.manage'] },
+      { labelKey: 'nav.emailTemplates', href: '/admin/email-templates', permissions: ['settings.manage'] },
     ],
   },
 ];

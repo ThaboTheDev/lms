@@ -164,3 +164,38 @@ describe('thread helpers', () => {
     expect(deriveSubject('   ', 'ADMINISTRATION')).toBe('Enquiry');
   });
 });
+
+describe('digests', async () => {
+  const { digestContent, digestDue, waitsForDigest } = await import('@/server/services/notification-rules');
+  const at = new Date('2026-09-26T08:05:00Z');
+
+  it('holds ordinary notices for the digest, never mandatory ones', () => {
+    expect(waitsForDigest('DAILY', 'forum.reply')).toBe(true);
+    expect(waitsForDigest('WEEKLY', 'grade.released')).toBe(true);
+    expect(waitsForDigest('DAILY', 'payment.status')).toBe(false);
+    expect(waitsForDigest('OFF', 'forum.reply')).toBe(false);
+  });
+
+  it('is due once a period has passed, allowing for the hourly job', () => {
+    expect(digestDue('DAILY', null, at).due).toBe(true);
+    expect(digestDue('DAILY', new Date('2026-09-25T08:05:00Z'), at).due).toBe(true);
+    expect(digestDue('DAILY', new Date('2026-09-25T08:10:00Z'), at).due).toBe(true);
+    expect(digestDue('DAILY', new Date('2026-09-25T09:00:00Z'), at).due).toBe(false);
+    expect(digestDue('WEEKLY', new Date('2026-09-22T08:05:00Z'), at).due).toBe(false);
+    expect(digestDue('OFF', null, at).due).toBe(false);
+  });
+
+  it('collects from the last digest, or one period back the first time', () => {
+    expect(digestDue('WEEKLY', null, at).since.toISOString()).toBe('2026-09-19T08:05:00.000Z');
+  });
+
+  it('lists the newest first and says how many more there are', () => {
+    const items = Array.from({ length: 32 }, (_, index) => ({ title: `Notice ${index}`, createdAt: new Date(at.getTime() - index * 60_000) }));
+    const content = digestContent(items, 'DAILY', 'MSRI');
+    expect(content.subject).toBe('32 updates today · MSRI');
+    expect(content.lines[0]!.title).toBe('Notice 0');
+    expect(content.lines).toHaveLength(30);
+    expect(content.more).toBe(2);
+    expect(digestContent(items.slice(0, 1), 'WEEKLY', 'MSRI').subject).toBe('1 update this week · MSRI');
+  });
+});

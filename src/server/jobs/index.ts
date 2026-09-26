@@ -81,6 +81,24 @@ export function registerJobHandlers() {
     await processPackage(String(payload.packageId ?? ''));
   });
 
+  /** Daily and weekly summaries for people who asked for them instead of one email per notice. */
+  registerHandler('notifications.digest', async () => {
+    const { sendDigest } = await import('@/server/services/notifications');
+    const people = await prisma.user.findMany({
+      where: { status: 'ACTIVE', digestFrequency: { not: 'OFF' } },
+      select: { id: true },
+    });
+    let sent = 0;
+    for (const person of people) {
+      try {
+        if ((await sendDigest(person.id)) > 0) sent += 1;
+      } catch (error) {
+        console.error('[jobs] digest failed for', person.id, error);
+      }
+    }
+    if (sent) console.info(`[jobs] digests: ${sent} sent`);
+  });
+
   registerHandler('email.send', async (payload) => {
     await deliverNotificationEmail(payload as unknown as NotifyInput);
   });

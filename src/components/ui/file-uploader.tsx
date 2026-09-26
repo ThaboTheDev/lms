@@ -47,7 +47,10 @@ export function FileUploader({
   label = 'Choose a file',
   accept,
   onUploaded,
+  inputId,
 }: {
+  /** Needed when the same field name appears more than once on a page. */
+  inputId?: string;
   name: string;
   folder: string;
   label?: string;
@@ -125,11 +128,11 @@ export function FileUploader({
       <input type="hidden" name={name} value={uploaded?.fileId ?? ''} />
       <input
         ref={inputRef}
-        id={`${name}-input`}
+        id={inputId ?? `${name}-input`}
         type="file"
         accept={accept}
         onChange={handleChange}
-        aria-describedby={`${name}-status`}
+        aria-describedby={`${inputId ?? name}-status`}
         className="block w-full text-sm file:mr-3 file:rounded file:border file:border-line file:bg-paper file:px-3 file:py-1.5 file:text-sm"
       />
       <noscript>
@@ -139,7 +142,7 @@ export function FileUploader({
         </p>
       </noscript>
       <p
-        id={`${name}-status`}
+        id={`${inputId ?? name}-status`}
         role={stage === 'error' ? 'alert' : 'status'}
         className={stage === 'error' ? 'text-sm text-danger' : 'text-sm text-muted'}
       >

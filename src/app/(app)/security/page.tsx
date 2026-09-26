@@ -7,6 +7,7 @@ import { requirePrincipal } from '@/lib/auth/current-user';
 import { generateMfaSecret, mfaUri } from '@/lib/auth/mfa';
 import { Button, Panel, Tag } from '@/components/ui/primitives';
 import { DescriptionList } from '@/components/ui/navigation';
+import { LOCALES } from '@/lib/i18n/messages';
 import { MfaSetup } from './mfa-setup';
 import { signOutEverywhere, turnOffMfa } from './actions';
 
@@ -14,7 +15,10 @@ export const metadata: Metadata = { title: 'Account and security' };
 
 export default async function SecurityPage() {
   const principal = await requirePrincipal();
-  const profile = await prisma.user.findUnique({ where: { id: principal.userId }, select: { preferredName: true, phone: true } });
+  const profile = await prisma.user.findUnique({
+    where: { id: principal.userId },
+    select: { preferredName: true, phone: true, locale: true, digestFrequency: true },
+  });
 
   const [user, sessions] = await Promise.all([
     prisma.user.findUnique({
@@ -136,7 +140,26 @@ export default async function SecurityPage() {
         submitLabel="Save"
         fields={[
           { name: 'preferredName', label: 'Preferred name', defaultValue: profile?.preferredName ?? '', hint: 'What people here call you' },
-          { name: 'phone', label: 'Phone', type: 'text', defaultValue: profile?.phone ?? '' },
+          { name: 'phone', label: 'Phone', type: 'text', defaultValue: profile?.phone ?? '', hint: 'Used for text messages, if your institution sends them' },
+          {
+            name: 'locale',
+            label: 'Language',
+            type: 'select',
+            defaultValue: profile?.locale ?? '',
+            options: [{ value: '', label: 'The institution’s language' }, ...Object.entries(LOCALES).map(([value, label]) => ({ value, label }))],
+          },
+          {
+            name: 'digestFrequency',
+            label: 'Email about notices',
+            type: 'select',
+            defaultValue: profile?.digestFrequency ?? 'OFF',
+            options: [
+              { value: 'OFF', label: 'As they happen' },
+              { value: 'DAILY', label: 'One summary a day' },
+              { value: 'WEEKLY', label: 'One summary a week' },
+            ],
+            hint: 'Security notices always come straight away',
+          },
         ]}
       />
 

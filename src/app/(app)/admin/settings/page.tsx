@@ -3,6 +3,8 @@ import { requirePrincipal } from '@/lib/auth/current-user';
 import { getInstitutionSettings } from '@/server/services/institution-settings';
 import { Breadcrumbs } from '@/components/ui/navigation';
 import { SettingsForm } from './settings-form';
+import { LogoForm } from './logo-form';
+import { logoUrlFor } from '@/server/services/branding';
 
 export const metadata: Metadata = { title: 'Institution settings' };
 
@@ -27,6 +29,8 @@ export default async function SettingsPage() {
         </p>
       </div>
 
+      <LogoForm logoUrl={logoUrlFor(institution)} />
+
       <SettingsForm
         values={{
           name: institution.name,
@@ -50,6 +54,7 @@ export default async function SettingsPage() {
           currency: institution.currency,
           certificatePrefix: institution.certificatePrefix,
           footerText: value(institution.footerText),
+          domain: value(institution.domain),
         }}
       />
     </div>

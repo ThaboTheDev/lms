@@ -11,6 +11,7 @@ export type JobName =
   | 'file.scan'
   | 'files.rescan'
   | 'package.process'
+  | 'notifications.digest'
   | 'notification.fanout';
 
 export type JobHandler = (payload: Record<string, unknown>) => Promise<void>;

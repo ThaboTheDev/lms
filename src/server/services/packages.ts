@@ -297,15 +297,19 @@ export async function recordScormCommit(pkg: PlayablePackage, userId: string, bo
   const payload = (body ?? {}) as { session?: unknown; values?: unknown };
   const raw = payload.values && typeof payload.values === 'object' ? (payload.values as Record<string, unknown>) : {};
   const version = detectVersion(raw, pkg.version);
-  const values = storableValues(version, raw);
-  const summary = summariseCmi(version, Object.fromEntries(Object.entries(raw).map(([key, value]) => [key, String(value ?? '')])));
   const session = typeof payload.session === 'string' ? payload.session.slice(0, 64) : 'unknown';
 
   const existing = await prisma.packageAttempt.findUnique({
     where: { packageId_userId: { packageId: pkg.id, userId } },
     select: { data: true, completedAt: true },
   });
-  const previous = (existing?.data ?? {}) as { sessions?: Record<string, number> };
+  const previous = (existing?.data ?? {}) as { sessions?: Record<string, number>; values?: CmiValues };
+
+  // Merged over what was stored, so a commit that leaves a value out (the
+  // resume point, say) does not erase it.
+  const values = { ...(previous.values ?? {}), ...storableValues(version, raw) };
+  const sessionKey = version === '1.2' ? 'cmi.core.session_time' : 'cmi.session_time';
+  const summary = summariseCmi(version, { ...values, [sessionKey]: String(raw[sessionKey] ?? '') });
   const sessions = Object.fromEntries(
     Object.entries({ ...(previous.sessions ?? {}), [session]: summary.sessionTimeSec }).slice(-100),
   );

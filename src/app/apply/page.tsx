@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { NotFoundError } from '@/lib/errors';
 import { resolvePublicInstitution } from '@/server/services/tenancy';
+import { requestHost } from '@/server/services/branding';
 import { displayInstitutionName } from '@/lib/brand';
 import { PublicFrame } from '@/components/brand/public-frame';
 import { ApplicationForm } from './application-form';
@@ -79,7 +80,7 @@ export default async function ApplyPage({
  */
 async function findInstitution(slug: string | undefined) {
   try {
-    return await resolvePublicInstitution(slug);
+    return await resolvePublicInstitution(slug, await requestHost());
   } catch (error) {
     if (error instanceof NotFoundError) notFound();
     throw error;
