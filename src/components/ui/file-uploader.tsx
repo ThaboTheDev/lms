@@ -13,6 +13,29 @@ interface UploadedFile {
 type Stage = 'idle' | 'requesting' | 'uploading' | 'confirming' | 'done' | 'error';
 
 /**
+ * Browsers leave the type blank for extensions they do not know (.h5p, often
+ * .md and .csv on Windows). Guess from the name for the ones this system
+ * accepts, so a good file is not refused as "application/octet-stream".
+ */
+const TYPE_BY_EXTENSION: Record<string, string> = {
+  h5p: 'application/zip',
+  zip: 'application/zip',
+  md: 'text/markdown',
+  csv: 'text/csv',
+  txt: 'text/plain',
+  pdf: 'application/pdf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+};
+
+function typeOf(file: File): string {
+  if (file.type) return file.type;
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+  return TYPE_BY_EXTENSION[extension] ?? 'application/octet-stream';
+}
+
+/**
  * Three step upload: ask the server for a short-lived URL, PUT the bytes
  * straight to storage, then tell the server it landed. The file never passes
  * through the application server, and the resulting file id is written to a
@@ -50,7 +73,7 @@ export function FileUploader({
         body: JSON.stringify({
           folder,
           filename: file.name,
-          mimeType: file.type || 'application/octet-stream',
+          mimeType: typeOf(file),
           sizeBytes: file.size,
         }),
       });
@@ -61,7 +84,7 @@ export function FileUploader({
       setStage('uploading');
       const put = await fetch(presigned.uploadUrl, {
         method: 'PUT',
-        headers: { 'content-type': file.type || 'application/octet-stream' },
+        headers: { 'content-type': typeOf(file) },
         body: file,
       });
       if (!put.ok) throw new Error('The file could not be sent to storage.');
@@ -77,7 +100,7 @@ export function FileUploader({
         fileId: presigned.fileId,
         name: file.name,
         size: file.size,
-        mimeType: file.type,
+        mimeType: typeOf(file),
       };
       setUploaded(result);
       setStage('done');
@@ -109,6 +132,12 @@ export function FileUploader({
         aria-describedby={`${name}-status`}
         className="block w-full text-sm file:mr-3 file:rounded file:border file:border-line file:bg-paper file:px-3 file:py-1.5 file:text-sm"
       />
+      <noscript>
+        <p className="text-sm text-danger">
+          Uploading sends the file straight to storage from your browser, which needs JavaScript.
+          Turn JavaScript on for this site and reload the page.
+        </p>
+      </noscript>
       <p
         id={`${name}-status`}
         role={stage === 'error' ? 'alert' : 'status'}

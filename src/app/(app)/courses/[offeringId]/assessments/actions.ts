@@ -16,6 +16,7 @@ import {
   startAttempt,
   submitAttempt,
   removeSubmissionFile,
+  saveFormAnswers,
 } from '@/server/services/submissions';
 import { finaliseCourseResults } from '@/server/services/gradebook';
 
@@ -143,7 +144,10 @@ export async function finishAttempt(_prev: FormState, formData: FormData): Promi
   const responses = String(formData.get('responses') ?? '');
 
   try {
-    if (responses) await saveAnswers(principal, submissionId, JSON.parse(responses));
+    // The form's own fields carry the answers, scripts or not. A page rendered
+    // before those fields existed posts them as JSON instead.
+    const { saved } = await saveFormAnswers(principal, submissionId, formData.entries());
+    if (!saved && responses) await saveAnswers(principal, submissionId, JSON.parse(responses));
     await submitAttempt(principal, submissionId);
   } catch (error) {
     return fail(error);

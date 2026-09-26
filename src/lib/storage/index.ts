@@ -32,9 +32,14 @@ export interface StorageDriver {
   /** Short-lived URL a browser can be redirected to in order to read the file. */
   presignDownload(key: string, filename: string): Promise<string>;
   delete(key: string): Promise<void>;
-  /** Only the local driver keeps bytes itself; `put` and `get` are its seam. */
-  put?(key: string, body: Uint8Array, contentType: string): Promise<void>;
-  get?(key: string): Promise<Uint8Array | null>;
+  /**
+   * Server-side reads and writes. Browsers still upload and download directly;
+   * these are for the work the server does with a file itself: streaming it to
+   * a ClamAV scanner, unpacking a SCORM or H5P package, storing a generated
+   * document.
+   */
+  put(key: string, body: Uint8Array, contentType: string): Promise<void>;
+  get(key: string): Promise<Uint8Array | null>;
 }
 
 /**
@@ -94,6 +99,23 @@ const s3Driver: StorageDriver = {
 
   async delete(key) {
     await s3Client().send(new DeleteObjectCommand({ Bucket: storageBucket, Key: key }));
+  },
+
+  async put(key, body, contentType) {
+    await s3Client().send(
+      new PutObjectCommand({ Bucket: storageBucket, Key: key, Body: body, ContentType: contentType }),
+    );
+  },
+
+  async get(key) {
+    try {
+      const object = await s3Client().send(new GetObjectCommand({ Bucket: storageBucket, Key: key }));
+      return object.Body ? await object.Body.transformToByteArray() : null;
+    } catch (error) {
+      const name = (error as { name?: string }).name;
+      if (name === 'NoSuchKey' || name === 'NotFound') return null;
+      throw error;
+    }
   },
 };
 

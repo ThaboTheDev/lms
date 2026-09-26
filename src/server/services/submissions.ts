@@ -13,6 +13,7 @@ import {
 } from './assessment-window';
 import { applyLatePenalty, applyGradeBands, scoreRubric, toPercent } from './grading-rules';
 import { drawFromPools, markAttempt, seededShuffle, type Answer, type MarkableQuestion } from './quiz-engine';
+import { answersFromForm } from './attempt-form';
 
 const TIMING_SELECT = {
   id: true, institutionId: true, offeringId: true, title: true, instructions: true,
@@ -171,6 +172,72 @@ export async function saveAnswers(
   });
 
   return { saved: true, at: new Date() };
+}
+
+/**
+ * Saves the answers an attempt form posted as ordinary fields. The form's
+ * fields are the answers as the learner left them, whether or not the page's
+ * scripts ever ran, so they replace what autosave stored for every question
+ * the form showed. Returns false when the form carried no questions at all (a
+ * page rendered before the fields existed), so the caller can fall back.
+ */
+export async function saveFormAnswers(
+  principal: Principal,
+  submissionId: string,
+  entries: Iterable<[string, unknown]>,
+): Promise<{ saved: boolean }> {
+  const submission = await prisma.submission.findUnique({
+    where: { id: submissionId },
+    select: { id: true, studentId: true, status: true, answers: true },
+  });
+  if (!submission) throw new NotFoundError('Attempt');
+  if (submission.studentId !== principal.studentId) {
+    throw new AppError('This is not your attempt.', 403, 'forbidden');
+  }
+  if (submission.status !== 'IN_PROGRESS') {
+    throw new AppError('This attempt has already been submitted.', 409, 'already_submitted');
+  }
+
+  const stored = (submission.answers ?? {}) as {
+    paper?: { questionId: string; mark: number }[];
+    responses?: Record<string, Answer>;
+  };
+  const questionIds = (stored.paper ?? []).map((item) => item.questionId);
+  const questions = questionIds.length
+    ? await prisma.question.findMany({ where: { id: { in: questionIds } }, select: { id: true, type: true } })
+    : [];
+
+  const fromForm = answersFromForm(entries, questions);
+  if (Object.keys(fromForm).length === 0) return { saved: false };
+
+  const responses: Record<string, Answer> = { ...(stored.responses ?? {}) };
+  for (const [questionId, answer] of Object.entries(fromForm)) {
+    if (answer) responses[questionId] = answer;
+    else delete responses[questionId];
+  }
+
+  await prisma.submission.update({
+    where: { id: submissionId },
+    data: { answers: { ...stored, responses } as never },
+  });
+
+  // Files uploaded as an answer are attached to the submission as well, which
+  // is what lets the marker open them.
+  const fileIds = [
+    ...new Set(Object.values(responses).flatMap((answer) => (answer.kind === 'files' ? answer.fileIds : []))),
+  ];
+  if (fileIds.length) {
+    const attached = await prisma.submissionFile.findMany({
+      where: { submissionId, fileId: { in: fileIds } },
+      select: { fileId: true },
+    });
+    const already = new Set(attached.map((row) => row.fileId));
+    for (const fileId of fileIds.filter((id) => !already.has(id))) {
+      await attachSubmissionFile(principal, submissionId, fileId);
+    }
+  }
+
+  return { saved: true };
 }
 
 /**

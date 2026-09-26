@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { buildContentSecurityPolicy, createNonce } from '@/lib/security/csp';
+import { embedOrigins, parseEmbedOrigins } from '@/lib/embed';
 
 const PUBLIC_PATHS = [
   '/login',           // includes /login/verify, the second factor step
@@ -12,6 +13,7 @@ const PUBLIC_PATHS = [
   '/api/v1/health',
   '/api/v1/auth/sign-out', // must run even when the cookie is already gone
   '/api/v1/badges',   // public Open Badges assertions for issued credentials
+  '/api/v1/packages', // SCORM and H5P files: the signed token in the path is the credential
 ];
 
 function contentSecurityPolicy(nonce: string) {
@@ -20,6 +22,7 @@ function contentSecurityPolicy(nonce: string) {
     storageEndpoint: process.env.S3_ENDPOINT,
     production: process.env.NODE_ENV === 'production',
     https: (process.env.APP_URL ?? '').startsWith('https://'),
+    frameOrigins: embedOrigins(parseEmbedOrigins(process.env.EMBED_ALLOWED_ORIGINS)),
   });
 }
 
@@ -32,6 +35,13 @@ function contentSecurityPolicy(nonce: string) {
  */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Package files run in a sandbox with their own policy (set by the route):
+  // this site's policy on top would block the package's scripts, and the
+  // sandboxed frame has no cookie to show. The token in the path is checked
+  // by the route.
+  if (pathname.startsWith('/api/v1/packages/')) return NextResponse.next();
+
   const nonce = createNonce();
   const policy = contentSecurityPolicy(nonce);
 

@@ -62,6 +62,8 @@ const schema = z.object({
   LOGIN_MAX_ATTEMPTS: z.coerce.number().int().positive().default(8),
   LOGIN_LOCKOUT_MINUTES: z.coerce.number().int().positive().default(15),
   /** Optional malware scanner. Without it uploads are marked SKIPPED, not CLEAN. */
+  /** Extra https origins lessons may frame, beyond the players in src/lib/embed.ts. */
+  EMBED_ALLOWED_ORIGINS: optionalString,
   MALWARE_SCANNER_URL: optionalUrl,
   MALWARE_SCANNER_TOKEN: optionalString,
 });

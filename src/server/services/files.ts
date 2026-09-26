@@ -2,6 +2,8 @@ import 'server-only';
 import { prisma } from '@/lib/db';
 import { AppError, NotFoundError } from '@/lib/errors';
 import { recordAudit } from '@/lib/audit';
+import { env } from '@/lib/env';
+import { downloadDecision } from '@/lib/storage/scan-policy';
 import { queue } from '@/lib/queue';
 import { can, requirePermission, requireSameInstitution, type Principal } from '@/lib/rbac/authorize';
 import type { PermissionKey } from '@/lib/rbac/permissions';
@@ -108,8 +110,16 @@ export async function assertCanReadFile(principal: Principal, fileId: string) {
   if (!file) throw new NotFoundError('File');
   if (file.institutionId) requireSameInstitution(principal, file.institutionId);
 
-  if (file.scanStatus === 'INFECTED') {
+  const decision = downloadDecision({
+    scanStatus: file.scanStatus,
+    scannerConfigured: Boolean(env.MALWARE_SCANNER_URL),
+    isUploader: file.uploadedById === principal.userId,
+  });
+  if (decision === 'withheld') {
     throw new AppError('This file was withheld by the malware scan.', 403, 'file_withheld');
+  }
+  if (decision === 'scanning') {
+    throw new AppError('This file is still being checked for viruses. Try again in a minute.', 409, 'file_scanning');
   }
 
   if (file.uploadedById === principal.userId) return file;

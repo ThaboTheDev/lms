@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { useHydrated } from '@/lib/hooks/use-hydrated';
 import { useFormStatus } from 'react-dom';
 import { Button, Field, Input, Panel } from '@/components/ui/primitives';
 import { FormMessage, Select, Textarea } from '@/components/ui/form';
@@ -29,6 +30,10 @@ export function ReviewForm({
 }) {
   const [state, action] = useActionState<FormState, FormData>(reviewPop, {});
   const [status, setStatus] = useState(transitions[0]?.to ?? '');
+  // Before the scripts run, choosing "approve" cannot reveal the amount, so
+  // the approval fields show from the start and apply only to an approval.
+  const hydrated = useHydrated();
+  const approvalOffered = transitions.some((transition) => transition.to === 'APPROVED');
 
   if (transitions.length === 0) {
     return (
@@ -57,8 +62,9 @@ export function ReviewForm({
           </Select>
         </Field>
 
-        {status === 'APPROVED' && !alreadyPaid && (
+        {(hydrated ? status === 'APPROVED' : approvalOffered) && !alreadyPaid && (
           <>
+            {!hydrated && <p className="text-sm font-medium">If you approve</p>}
             <Field
               label="Amount to credit"
               htmlFor="amount"
@@ -90,9 +96,15 @@ export function ReviewForm({
         <Field
           label="Note"
           htmlFor="note"
-          hint={selected?.requiresNote ? 'Required, and shown to the learner' : 'Optional'}
+          hint={
+            !hydrated
+              ? 'Shown to the learner. Required when asking for a new document or rejecting.'
+              : selected?.requiresNote
+                ? 'Required, and shown to the learner'
+                : 'Optional'
+          }
         >
-          <Textarea id="note" name="note" rows={3} required={selected?.requiresNote} />
+          <Textarea id="note" name="note" rows={3} required={hydrated && selected?.requiresNote} />
         </Field>
 
         <Submit />

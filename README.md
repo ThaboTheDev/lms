@@ -66,6 +66,8 @@ Radebe Institute. Accounts all use the passphrase printed by the seed script
 | super.admin@kopano.example.ac.za | Super administrator |
 | principal@kopano.example.ac.za | Institutional administrator |
 | registrar@kopano.example.ac.za | Registrar |
+| academic@kopano.example.ac.za | Academic administrator (can release results) |
+| coordinator@kopano.example.ac.za | Programme coordinator (can release results) |
 | lecturer@kopano.example.ac.za | Lecturer |
 | finance@kopano.example.ac.za | Finance officer |
 | lerato.mokoena@student.kopano.example.ac.za | Student |

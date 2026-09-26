@@ -214,6 +214,25 @@ services:
     entrypoint: ['/bin/sh', '-c']
     command: ['while true; do /usr/local/bin/backup.sh; sleep 86400; done']
 
+  # Optional ClamAV daemon for the malware scan, off unless asked for:
+  #   docker compose -f docker-compose.prod.yml --profile scanner up -d
+  # with MALWARE_SCANNER_URL=clamd://clamav:3310 in .env. The worker streams
+  # each upload to it; with a scanner configured only files it has cleared
+  # are served to anyone but the uploader.
+  # clamd keeps its signature database in memory: about 1.2 GB, more while it
+  # loads new signatures. That does not fit beside Moodle on the 4 GB host
+  # this file is sized for, so run it on a larger host, or point
+  # MALWARE_SCANNER_URL at a hosted scanner instead.
+  clamav:
+    image: clamav/clamav:stable
+    profiles: ['scanner']
+    restart: unless-stopped
+    mem_limit: 1536m
+    memswap_limit: 1536m   # equal to mem_limit: no swap allowance
+    volumes:
+      - clamav-data:/var/lib/clamav
+
 volumes:
   db-data:
   redis-data:
+  clamav-data:

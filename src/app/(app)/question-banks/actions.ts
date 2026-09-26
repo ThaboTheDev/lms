@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requirePrincipal } from '@/lib/auth/current-user';
 import { AppError } from '@/lib/errors';
-import { parseOptionLines, questionSchema } from '@/lib/validation/assessment';
+import { questionSchema } from '@/lib/validation/assessment';
+import { optionsForType, settingsForType } from '@/lib/validation/question-form';
 import { toFieldErrors, type FormState } from '@/lib/validation/common';
 import { addQuestion, createBank } from '@/server/services/question-bank';
 
@@ -43,17 +44,13 @@ export async function newQuestion(_prev: FormState, formData: FormData): Promise
   }
 
   const data = parsed.data;
-  const options = data.options ? parseOptionLines(data.options) : [];
-
-  // True or false questions are the same shape every time, so they are built
-  // rather than retyped.
-  const finalOptions =
-    data.type === 'TRUE_FALSE' && options.length === 0
-      ? [
-          { content: 'true', isCorrect: String(formData.get('trueFalseAnswer')) === 'true' },
-          { content: 'false', isCorrect: String(formData.get('trueFalseAnswer')) === 'false' },
-        ]
-      : options;
+  const fields = {
+    options: data.options,
+    correctValue: String(formData.get('correctValue') ?? ''),
+    trueFalseAnswer: String(formData.get('trueFalseAnswer') ?? ''),
+    acceptedAnswers: data.acceptedAnswers,
+    tolerance: data.tolerance,
+  };
 
   try {
     await addQuestion(principal, data.bankId, {
@@ -65,13 +62,8 @@ export async function newQuestion(_prev: FormState, formData: FormData): Promise
       bloomLevel: data.bloomLevel || null,
       topic: data.topic || null,
       tags: (data.tags ?? '').split(',').map((tag) => tag.trim()).filter(Boolean),
-      settings: {
-        ...(data.tolerance !== undefined ? { tolerance: data.tolerance } : {}),
-        ...(data.acceptedAnswers
-          ? { acceptedAnswers: data.acceptedAnswers.split('\n').map((line) => line.trim()).filter(Boolean) }
-          : {}),
-      },
-      options: finalOptions,
+      settings: settingsForType(data.type, fields),
+      options: optionsForType(data.type, fields),
     });
   } catch (error) {
     if (error instanceof AppError) {

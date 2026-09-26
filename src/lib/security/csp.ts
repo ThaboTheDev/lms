@@ -23,6 +23,8 @@ export interface CspOptions {
   production: boolean;
   /** upgrade-insecure-requests only makes sense where the site itself is served over HTTPS. */
   https: boolean;
+  /** Origins lessons may frame. */
+  frameOrigins?: string[];
 }
 
 /** The origin of an http(s) storage endpoint, or null for anything else. */
@@ -36,7 +38,7 @@ export function storageOrigin(endpoint: string | null | undefined): string | nul
   }
 }
 
-export function buildContentSecurityPolicy({ nonce, storageEndpoint, production, https }: CspOptions): string {
+export function buildContentSecurityPolicy({ nonce, storageEndpoint, production, https, frameOrigins = [] }: CspOptions): string {
   const storage = storageOrigin(storageEndpoint);
   const plusStorage = (directive: string) => (storage ? `${directive} ${storage}` : directive);
 
@@ -53,6 +55,10 @@ export function buildContentSecurityPolicy({ nonce, storageEndpoint, production,
     plusStorage("media-src 'self' blob:"),
     "font-src 'self' data:",
     plusStorage("connect-src 'self'"),
+    // Lessons frame the players and viewers in ../embed.ts (and whatever the
+    // institution added to EMBED_ALLOWED_ORIGINS); 'self' is for the SCORM and
+    // H5P players, which are served from this origin inside a sandbox.
+    ["frame-src 'self'", ...frameOrigins].join(' '),
     production ? "frame-ancestors 'none'" : 'frame-ancestors *',
     "form-action 'self'",
     "base-uri 'self'",

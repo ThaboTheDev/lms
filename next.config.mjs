@@ -35,6 +35,11 @@ const nextConfig = {
   typedRoutes: true,
   // Development only: the dev server may be opened from a hosted preview origin.
   allowedDevOrigins: ["*.e2b.app", "*.devtunnels.ms", "*.app.github.dev", "localhost", "127.0.0.1"],
+  // The H5P player's own scripts and styles are served from node_modules by
+  // the package route; list them so the standalone build carries them.
+  outputFileTracingIncludes: {
+    "/api/v1/packages/[packageId]/[token]/[...path]": ["./node_modules/h5p-standalone/dist/**/*"],
+  },
   experimental: {
     // forbidden() and a 403 page: a permission refusal renders as "not allowed"
     // with status 403 instead of a 500 "could not be loaded".
@@ -59,6 +64,13 @@ const nextConfig = {
         // Nothing behind authentication should ever be cached by a proxy.
         source: "/api/:path*",
         headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }],
+      },
+      {
+        // SCORM and H5P packages are framed by this site's own lesson pages
+        // (inside a sandbox, with the route's own policy and caching), so this
+        // origin may frame them.
+        source: "/api/v1/packages/:path*",
+        headers: isProduction ? [{ key: "X-Frame-Options", value: "SAMEORIGIN" }] : [],
       },
     ];
   },

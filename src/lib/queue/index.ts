@@ -9,6 +9,8 @@ export type JobName =
   | 'invoices.arrears'
   | 'retention.sweep'
   | 'file.scan'
+  | 'files.rescan'
+  | 'package.process'
   | 'notification.fanout';
 
 export type JobHandler = (payload: Record<string, unknown>) => Promise<void>;

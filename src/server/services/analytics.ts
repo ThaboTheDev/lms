@@ -1,7 +1,8 @@
 import 'server-only';
 import { prisma } from '@/lib/db';
 import { recordAudit } from '@/lib/audit';
-import { requirePermission, type Principal } from '@/lib/rbac/authorize';
+import { requirePermission, requireSameInstitution, type Principal } from '@/lib/rbac/authorize';
+import { NotFoundError } from '@/lib/errors';
 import { summariseAttendance, findAbsencePattern, type AttendanceEntry } from './attendance-rules';
 import { toPercent } from './grading-rules';
 import {
@@ -155,7 +156,22 @@ export async function refreshAtRiskFlags(principal: Principal) {
   const institutionId = principal.institutionId;
   if (!institutionId) return { written: 0 };
 
-  const rows = await atRiskLearners(principal, 500);
+  const evaluated = await atRiskLearners(principal, 500);
+
+  // Somebody followed up recently: the learner is not flagged again for the
+  // same picture, only if it has got worse since.
+  const followedUp = await prisma.atRiskFlag.findMany({
+    where: { institutionId, acknowledgedAt: { gte: followUpWindowStart() } },
+    select: { studentId: true, score: true },
+  });
+  const scoreWhenFollowedUp = new Map<string, number>();
+  for (const flag of followedUp) {
+    scoreWhenFollowedUp.set(flag.studentId, Math.max(flag.score, scoreWhenFollowedUp.get(flag.studentId) ?? 0));
+  }
+  const rows = evaluated.filter((row) => {
+    const previous = scoreWhenFollowedUp.get(row.studentId);
+    return previous === undefined || row.risk.score > previous;
+  });
 
   await prisma.$transaction([
     prisma.atRiskFlag.deleteMany({ where: { institutionId, acknowledgedAt: null } }),
@@ -181,6 +197,133 @@ export async function refreshAtRiskFlags(principal: Principal) {
   });
 
   return { written: rows.length };
+}
+
+/** How long a follow-up keeps a learner off the list, unless things get worse. */
+export const FOLLOW_UP_DAYS = 14;
+
+function followUpWindowStart(at = new Date()): Date {
+  return new Date(at.getTime() - FOLLOW_UP_DAYS * 24 * 60 * 60 * 1000);
+}
+
+interface StoredIndicators {
+  level?: 'urgent' | 'concern' | 'watch' | 'none';
+  basis?: string;
+  indicators?: { key: string; statement: string }[];
+}
+
+export interface StoredFlag {
+  id: string;
+  studentId: string;
+  studentNumber: string;
+  name: string;
+  programmeCode: string | null;
+  score: number;
+  level: 'urgent' | 'concern' | 'watch' | 'none';
+  indicators: { key: string; statement: string }[];
+  generatedAt: Date;
+  acknowledgedAt: Date | null;
+  acknowledgedBy: string | null;
+}
+
+/**
+ * The list the nightly evaluation stored: what support staff work through
+ * over days. Open flags first, most pressing first, then the ones somebody
+ * followed up in the last fortnight with who and when.
+ */
+export async function listAtRiskFlags(principal: Principal): Promise<{
+  open: StoredFlag[];
+  followedUp: StoredFlag[];
+  evaluatedAt: Date | null;
+}> {
+  requirePermission(principal, 'analytics.read');
+  const institutionId = principal.institutionId;
+  if (!institutionId) return { open: [], followedUp: [], evaluatedAt: null };
+
+  const flags = await prisma.atRiskFlag.findMany({
+    where: {
+      institutionId,
+      OR: [{ acknowledgedAt: null }, { acknowledgedAt: { gte: followUpWindowStart() } }],
+    },
+    orderBy: [{ score: 'desc' }, { generatedAt: 'desc' }],
+    take: 500,
+    select: {
+      id: true,
+      score: true,
+      indicators: true,
+      generatedAt: true,
+      acknowledgedAt: true,
+      acknowledgedById: true,
+      student: {
+        select: {
+          id: true,
+          studentNumber: true,
+          user: { select: { firstName: true, lastName: true } },
+          programmeEnrolments: {
+            take: 1,
+            orderBy: { enrolledOn: 'desc' },
+            select: { programme: { select: { code: true } } },
+          },
+        },
+      },
+    },
+  });
+
+  const acknowledgerIds = [...new Set(flags.map((flag) => flag.acknowledgedById).filter((id): id is string => Boolean(id)))];
+  const acknowledgers = acknowledgerIds.length
+    ? await prisma.user.findMany({ where: { id: { in: acknowledgerIds } }, select: { id: true, firstName: true, lastName: true } })
+    : [];
+  const nameOf = new Map(acknowledgers.map((user) => [user.id, `${user.firstName} ${user.lastName}`]));
+
+  const latest = await prisma.atRiskFlag.aggregate({ where: { institutionId }, _max: { generatedAt: true } });
+
+  const shaped = flags.map((flag): StoredFlag => {
+    const stored = (flag.indicators ?? {}) as StoredIndicators;
+    return {
+      id: flag.id,
+      studentId: flag.student.id,
+      studentNumber: flag.student.studentNumber,
+      name: `${flag.student.user.firstName} ${flag.student.user.lastName}`,
+      programmeCode: flag.student.programmeEnrolments[0]?.programme.code ?? null,
+      score: flag.score,
+      level: stored.level ?? 'watch',
+      indicators: stored.indicators ?? [],
+      generatedAt: flag.generatedAt,
+      acknowledgedAt: flag.acknowledgedAt,
+      acknowledgedBy: flag.acknowledgedById ? (nameOf.get(flag.acknowledgedById) ?? 'a colleague') : null,
+    };
+  });
+
+  return {
+    open: shaped.filter((flag) => !flag.acknowledgedAt),
+    followedUp: shaped
+      .filter((flag) => flag.acknowledgedAt)
+      .sort((a, b) => b.acknowledgedAt!.getTime() - a.acknowledgedAt!.getTime()),
+    evaluatedAt: latest._max.generatedAt,
+  };
+}
+
+/** Records that somebody has followed up on a flag. */
+export async function acknowledgeAtRiskFlag(principal: Principal, flagId: string) {
+  requirePermission(principal, 'analytics.read');
+  const flag = await prisma.atRiskFlag.findUnique({
+    where: { id: flagId },
+    select: { id: true, institutionId: true, studentId: true, acknowledgedAt: true },
+  });
+  if (!flag) throw new NotFoundError('Flag');
+  requireSameInstitution(principal, flag.institutionId);
+  if (flag.acknowledgedAt) return { acknowledged: false };
+
+  await prisma.atRiskFlag.update({
+    where: { id: flagId },
+    data: { acknowledgedAt: new Date(), acknowledgedById: principal.userId },
+  });
+  await recordAudit(principal, {
+    action: 'analytics.at_risk_followed_up',
+    entityType: 'StudentProfile',
+    entityId: flag.studentId,
+  });
+  return { acknowledged: true };
 }
 
 /** Engagement and outcome figures by programme, with small groups suppressed. */

@@ -4,6 +4,9 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requirePrincipal } from '@/lib/auth/current-user';
 import { AppError } from '@/lib/errors';
+import { env } from '@/lib/env';
+import { parseEmbedOrigins, toEmbed } from '@/lib/embed';
+import { linkLesson } from '@/server/services/lesson-links';
 import { toFieldErrors, type FormState } from '@/lib/validation/common';
 import {
   addBlock,
@@ -102,7 +105,7 @@ export async function addLessonBlock(_prev: FormState, formData: FormData): Prom
 
   const { kind, text, url, fileId, lessonId, offeringId } = parsed.data;
 
-  if (kind === 'RICH_TEXT' && !text) {
+  if ((kind === 'RICH_TEXT' || kind === 'CALLOUT') && !text) {
     return { status: 'error', message: 'Write something first.', fieldErrors: { text: 'This cannot be empty.' } };
   }
   if ((kind === 'LINK' || kind === 'EMBED') && !url) {
@@ -122,8 +125,18 @@ export async function addLessonBlock(_prev: FormState, formData: FormData): Prom
         : undefined;
 
   const result = await guarded(
-    () => addBlock(principal, lessonId, { kind, richText, fileId: fileId || undefined, url: url || undefined }),
-    'Added to the lesson.',
+    // Only the field the kind uses: before the scripts run the form shows
+    // every field, and a stray value in another one must not ride along.
+    () =>
+      addBlock(principal, lessonId, {
+        kind,
+        richText,
+        fileId: ['FILE', 'IMAGE', 'VIDEO', 'AUDIO'].includes(kind) ? fileId || undefined : undefined,
+        url: kind === 'LINK' || kind === 'EMBED' ? url || undefined : undefined,
+      }),
+    kind === 'EMBED' && !toEmbed(url, parseEmbedOrigins(env.EMBED_ALLOWED_ORIGINS))
+      ? 'Added. That site cannot play inside the lesson, so learners get a link to it instead. An administrator can allow it with EMBED_ALLOWED_ORIGINS.'
+      : 'Added to the lesson.',
   );
   refresh(offeringId);
   return result;
@@ -181,4 +194,17 @@ export async function removeLesson(formData: FormData): Promise<void> {
   const principal = await requirePrincipal();
   await deleteLesson(principal, String(formData.get('lessonId') ?? ''));
   refresh(String(formData.get('offeringId') ?? ''));
+}
+
+/** Points a live class, assessment, discussion, survey or package lesson at the thing it opens. */
+export async function saveLessonLink(_prev: FormState, formData: FormData): Promise<FormState> {
+  const principal = await requirePrincipal();
+  const offeringId = String(formData.get('offeringId') ?? '');
+  const ref = String(formData.get('ref') ?? '');
+  const result = await guarded(
+    () => linkLesson(principal, String(formData.get('lessonId') ?? ''), ref || null),
+    ref ? 'Linked.' : 'Link removed.',
+  );
+  refresh(offeringId);
+  return result;
 }

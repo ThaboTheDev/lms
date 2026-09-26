@@ -1,7 +1,7 @@
 import 'server-only';
 import { prisma } from '@/lib/db';
 import { mailer, type OutboundEmail } from '@/lib/mail';
-import { registerHandler } from '@/lib/queue';
+import { queue, registerHandler } from '@/lib/queue';
 import { systemPrincipal } from '@/lib/rbac/system';
 import { scanFile } from '@/lib/storage/scan';
 import { deliverNotificationEmail, type NotifyInput } from '@/server/services/notifications';
@@ -50,6 +50,35 @@ export function registerJobHandlers() {
       where: { id: fileId },
       data: { scanStatus: result.verdict },
     });
+  });
+
+  /**
+   * The next pass for files the scanner did not reach: still PENDING a while
+   * after upload because it was down, or SKIPPED because they were uploaded
+   * before a scanner was configured. Each is queued for an ordinary scan.
+   */
+  registerHandler('files.rescan', async () => {
+    const { env } = await import('@/lib/env');
+    const settled = new Date(Date.now() - 10 * 60 * 1000);
+    const files = await prisma.fileObject.findMany({
+      where: {
+        OR: [
+          { scanStatus: 'PENDING', createdAt: { lt: settled } },
+          ...(env.MALWARE_SCANNER_URL ? [{ scanStatus: 'SKIPPED' as const }] : []),
+        ],
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+      select: { id: true },
+    });
+    for (const file of files) await queue.enqueue('file.scan', { fileId: file.id });
+    if (files.length) console.info(`[jobs] rescan: ${files.length} files queued for scanning`);
+  });
+
+  /** Unpacks an uploaded SCORM or H5P package into storage and reads its manifest. */
+  registerHandler('package.process', async (payload) => {
+    const { processPackage } = await import('@/server/services/packages');
+    await processPackage(String(payload.packageId ?? ''));
   });
 
   registerHandler('email.send', async (payload) => {

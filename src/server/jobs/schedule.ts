@@ -10,6 +10,7 @@ export const SCHEDULE: { name: JobName; pattern: string; description: string }[]
   { name: 'attempts.sweep', pattern: '*/5 * * * *', description: 'Submit timed attempts that were abandoned' },
   { name: 'atrisk.evaluate', pattern: '0 1 * * *', description: 'Rebuild the at-risk list' },
   { name: 'invoices.arrears', pattern: '0 2 * * *', description: 'Mark overdue invoices and instalments' },
+  { name: 'files.rescan', pattern: '*/15 * * * *', description: 'Scan files the scanner missed or never saw' },
 ];
 
 export const SCHEDULE_TIMEZONE = 'Africa/Johannesburg';

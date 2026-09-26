@@ -54,11 +54,22 @@ async function main() {
       select: { id: true },
     });
 
-    await prisma.rolePermission.deleteMany({ where: { roleId: record.id } });
-    await prisma.rolePermission.createMany({
-      data: permissions.map((p) => ({ roleId: record.id, permissionId: p.id })),
-      skipDuplicates: true,
+    // An institution's own copy of a system role (the seed makes them, and
+    // role lookup prefers them) follows the catalogue too. System roles cannot
+    // be edited on screen, so a copy left alone would silently keep whatever
+    // permissions the catalogue had on the day it was made.
+    const copies = await prisma.role.findMany({
+      where: { key: role.key, isSystem: true, institutionId: { not: null } },
+      select: { id: true },
     });
+
+    for (const target of [record, ...copies]) {
+      await prisma.rolePermission.deleteMany({ where: { roleId: target.id } });
+      await prisma.rolePermission.createMany({
+        data: permissions.map((p) => ({ roleId: target.id, permissionId: p.id })),
+        skipDuplicates: true,
+      });
+    }
   }
   console.log(`system roles synced: ${SYSTEM_ROLES.length}`);
 }

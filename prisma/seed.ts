@@ -138,6 +138,7 @@ async function main() {
   await createUser('principal@kopano.example.ac.za', 'Sipho', 'Mahlangu', 'INSTITUTION_ADMIN');
   await createUser('registrar@kopano.example.ac.za', 'Anele', 'Dube', 'REGISTRAR');
   await createUser('academic@kopano.example.ac.za', 'Refilwe', 'Motaung', 'ACADEMIC_ADMIN');
+  await createUser('coordinator@kopano.example.ac.za', 'Lindiwe', 'Zulu', 'PROGRAMME_COORDINATOR');
   const lecturer = await createUser('lecturer@kopano.example.ac.za', 'Thabo', 'Khumalo', 'LECTURER');
   await createUser('finance@kopano.example.ac.za', 'Zanele', 'Botha', 'FINANCE_OFFICER');
   await createUser('quality@kopano.example.ac.za', 'Naledi', 'Pillay', 'QA_OFFICER');

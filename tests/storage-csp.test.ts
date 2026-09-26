@@ -13,6 +13,8 @@ function baseline(mode: 'production' | 'development', https = true) {
     "media-src 'self' blob:",
     "font-src 'self' data:",
     "connect-src 'self'",
+    // Only this site's own sandboxed package player unless embed origins are passed.
+    "frame-src 'self'",
     mode === 'production' ? "frame-ancestors 'none'" : 'frame-ancestors *',
     "form-action 'self'",
     "base-uri 'self'",

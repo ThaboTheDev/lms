@@ -294,6 +294,7 @@ enum LiveProvider {
   ZOOM
   MICROSOFT_TEAMS
   GOOGLE_MEET
+  JITSI
   OTHER
 }
 
@@ -478,6 +479,8 @@ enum QaDocumentStatus {
 model Institution {
   id                String   @id @default(cuid())
   slug              String   @unique
+  /// The host name this institution's public pages answer on, e.g. learn.example.ac.za.
+  domain            String?  @unique
   name              String
   shortName         String?
   registrationNo    String?
@@ -556,6 +559,10 @@ model Institution {
   settings           SystemSetting[]
   atRiskFlags        AtRiskFlag[]
 
+  learningPackages     LearningPackage[]
+  surveys              Survey[]
+  paymentGatewayEvents PaymentGatewayEvent[]
+
   @@index([isActive])
 }
 
@@ -571,6 +578,8 @@ model User {
   phone           String?
   avatarFileId    String?
   locale          String?
+  digestFrequency DigestFrequency @default(OFF)
+  lastDigestAt    DateTime?
   timezone        String?
   emailVerifiedAt DateTime?
   lastLoginAt     DateTime?
@@ -612,6 +621,10 @@ model User {
   notifications   Notification[]
   notificationPrefs NotificationPreference[]
   auditLogs       AuditLog[]
+
+  packageAttempts   PackageAttempt[]
+  surveyResponses   SurveyResponse[]
+  pushSubscriptions PushSubscription[]
 
   @@index([institutionId, status])
   @@index([lastName, firstName])
@@ -998,6 +1011,9 @@ model CourseOffering {
   certificates       Certificate[]
   atRiskFlags        AtRiskFlag[]
 
+  learningPackages LearningPackage[]
+  surveys          Survey[]
+
   @@unique([courseId, academicTermId, sectionCode])
   @@index([institutionId, status])
 }
@@ -1065,6 +1081,8 @@ model StudentProfile {
   atRiskFlags         AtRiskFlag[]
   applications        Application[]        @relation("ApplicationCreatedStudent")
 
+  peerReviewsGiven PeerReviewAllocation[]
+
   @@unique([institutionId, studentNumber])
   @@index([institutionId, admissionStatus])
 }
@@ -1112,6 +1130,9 @@ model Application {
   decisionNotes    String?
   conditions       String?
   applicationFeePaid Boolean         @default(false)
+  /// Keyed hash of the link emailed to the applicant, which lets them follow
+  /// the application and send documents without an account.
+  accessTokenHash  String?           @unique
   createdStudentId String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -1236,6 +1257,8 @@ model FileObject {
   certificates        Certificate[]
   transcripts         TranscriptSnapshot[]
   qaDocuments         QaDocument[]
+
+  learningPackages LearningPackage[]
 
   @@index([institutionId, createdAt])
 }
@@ -1391,6 +1414,14 @@ model Assessment {
   releaseResultsAt  DateTime?
   shuffleQuestions  Boolean            @default(false)
   questionsPerAttempt Int?
+  /// Peer review: how many classmates review each submission, and by when.
+  peerReviewCount        Int?
+  peerReviewDueAt        DateTime?
+  /// Safe Exam Browser: attempts must come from SEB with one of these config keys.
+  requireSafeExamBrowser Boolean  @default(false)
+  sebConfigKeys          String[]
+  /// Record focus changes and pastes during attempts, for the marker to see.
+  integrityMonitoring    Boolean  @default(false)
   rubricId          String?
   gradingSchemeId   String?
   status            AssessmentStatus   @default(DRAFT)
@@ -1409,6 +1440,8 @@ model Assessment {
   outcomes    AssessmentOutcome[]
   moderations ModerationRecord[]
   events      CalendarEvent[]
+
+  peerReviews PeerReviewAllocation[]
 
   @@index([institutionId, status])
   @@index([offeringId, dueAt])
@@ -1550,6 +1583,8 @@ model Submission {
   responses   QuestionResponse[]
   rubricScores RubricScore[]
   moderations ModerationRecord[]
+  peerReviews     PeerReviewAllocation[]
+  integrityEvents IntegrityEvent[]
 
   @@unique([assessmentId, studentId, attemptNumber])
   @@index([assessmentId, status])
@@ -2073,6 +2108,8 @@ model Notification {
   channel       NotificationChannel @default(IN_APP)
   readAt        DateTime?
   deliveredAt   DateTime?
+  /// When it went out by email, on its own or in a digest.
+  emailedAt     DateTime?
   meta          Json?
   createdAt     DateTime            @default(now())
 
@@ -2467,4 +2504,218 @@ model SystemSetting {
   institution Institution? @relation(fields: [institutionId], references: [id], onDelete: Cascade)
 
   @@unique([institutionId, key])
+}
+
+// ---------------------------------------------------------------------------
+// Learning tools: interactive packages, surveys, peer review, exam integrity,
+// push subscriptions, payment gateway notifications, notification digests.
+// ---------------------------------------------------------------------------
+
+enum DigestFrequency {
+  OFF
+  DAILY
+  WEEKLY
+}
+
+enum PackageKind {
+  SCORM
+  H5P
+}
+
+enum PackageStatus {
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum SurveyStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+enum SurveyQuestionType {
+  RATING
+  CHOICE
+  TEXT
+}
+
+enum PeerReviewStatus {
+  ASSIGNED
+  SUBMITTED
+}
+
+/// A SCORM or H5P package, unpacked into storage under storagePrefix and
+/// played from this origin inside a sandbox.
+model LearningPackage {
+  id            String        @id @default(cuid())
+  institutionId String
+  offeringId    String?
+  kind          PackageKind
+  title         String
+  fileId        String
+  storagePrefix String
+  launchPath    String        @default("index.html")
+  version       String?
+  status        PackageStatus @default(PROCESSING)
+  error         String?
+  manifest      Json?
+  createdById   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  institution Institution      @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  offering    CourseOffering?  @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  file        FileObject       @relation(fields: [fileId], references: [id], onDelete: Restrict)
+  attempts    PackageAttempt[]
+
+  @@index([offeringId, status])
+  @@index([institutionId])
+}
+
+/// One learner's run through a package: what SCORM's runtime (or H5P's
+/// xAPI events) reported, and where to resume.
+model PackageAttempt {
+  id           String    @id @default(cuid())
+  packageId    String
+  userId       String
+  completion   String?
+  success      String?
+  scoreRaw     Decimal?  @db.Decimal(8, 2)
+  scoreMax     Decimal?  @db.Decimal(8, 2)
+  scoreScaled  Decimal?  @db.Decimal(5, 4)
+  totalTimeSec Int       @default(0)
+  location     String?
+  suspendData  String?
+  data         Json?
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  package LearningPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, userId])
+}
+
+model Survey {
+  id            String       @id @default(cuid())
+  institutionId String
+  offeringId    String?
+  title         String
+  description   String?
+  isAnonymous   Boolean      @default(true)
+  status        SurveyStatus @default(DRAFT)
+  opensAt       DateTime?
+  closesAt      DateTime?
+  createdById   String?
+  createdAt     DateTime     @default(now())
+
+  institution Institution      @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  offering    CourseOffering?  @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  questions   SurveyQuestion[]
+  responses   SurveyResponse[]
+
+  @@index([offeringId, status])
+  @@index([institutionId])
+}
+
+model SurveyQuestion {
+  id         String             @id @default(cuid())
+  surveyId   String
+  orderIndex Int                @default(0)
+  prompt     String
+  type       SurveyQuestionType @default(RATING)
+  options    String[]
+  isRequired Boolean            @default(true)
+
+  survey Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  @@index([surveyId, orderIndex])
+}
+
+/// respondentKey is a keyed hash of survey and person: it allows one response
+/// each without recording who gave it on an anonymous survey.
+model SurveyResponse {
+  id            String   @id @default(cuid())
+  surveyId      String
+  respondentKey String
+  respondentId  String?
+  answers       Json
+  submittedAt   DateTime @default(now())
+
+  survey     Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  respondent User?  @relation(fields: [respondentId], references: [id], onDelete: SetNull)
+
+  @@unique([surveyId, respondentKey])
+}
+
+model PeerReviewAllocation {
+  id           String           @id @default(cuid())
+  assessmentId String
+  submissionId String
+  reviewerId   String
+  status       PeerReviewStatus @default(ASSIGNED)
+  score        Decimal?         @db.Decimal(6, 2)
+  feedback     String?
+  submittedAt  DateTime?
+  createdAt    DateTime         @default(now())
+
+  assessment Assessment     @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  submission Submission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reviewer   StudentProfile @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, reviewerId])
+  @@index([assessmentId, reviewerId])
+}
+
+/// Something that happened during an attempt that a marker may want to know:
+/// the window lost focus, text was pasted, Safe Exam Browser was missing.
+model IntegrityEvent {
+  id           String   @id @default(cuid())
+  submissionId String
+  kind         String
+  detail       String?
+  occurredAt   DateTime @default(now())
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId, occurredAt])
+}
+
+model PushSubscription {
+  id         String    @id @default(cuid())
+  userId     String
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Every payment notification a gateway sent, verified or not. The unique
+/// key makes a repeated notification a no-op instead of a second payment.
+model PaymentGatewayEvent {
+  id            String   @id @default(cuid())
+  institutionId String
+  provider      String
+  externalId    String
+  invoiceId     String?
+  paymentId     String?
+  status        String
+  amount        Decimal  @db.Decimal(12, 2)
+  verified      Boolean  @default(false)
+  error         String?
+  payload       Json
+  receivedAt    DateTime @default(now())
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, externalId])
+  @@index([institutionId, receivedAt])
 }

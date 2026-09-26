@@ -201,6 +201,14 @@ export default async function CoursePage({ params }: { params: Promise<{ offerin
               <Button variant="secondary">Edit content</Button>
             </Link>
           )}
+          {viewer === 'staff' && (
+            <Link href={`/courses/${offeringId}/packages`}>
+              <Button variant="secondary">Packages</Button>
+            </Link>
+          )}
+          <Link href={`/courses/${offeringId}/surveys`}>
+            <Button variant="secondary">Surveys</Button>
+          </Link>
           {viewer === 'learner' && resume && (
             <Link href={`/courses/${offeringId}/lessons/${resume.id}`}>
               <Button>{outline.lessonsComplete > 0 ? 'Continue' : 'Start the course'}</Button>

@@ -46,6 +46,9 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
       'content.read', 'content.manage', 'assessment.read', 'assessment.manage',
       'question_bank.read', 'academic_record.read', 'calendar.manage',
       'announcement.publish', 'message.send', 'report.read', 'qa.manage',
+      // The academic office releases results in most institutions; without
+      // this only a programme coordinator could, and many have none.
+      'submission.read', 'grade.publish',
     ],
   },
   {
