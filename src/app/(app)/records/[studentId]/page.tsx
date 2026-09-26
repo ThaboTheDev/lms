@@ -68,9 +68,9 @@ export default async function StudentRecordPage({
             {enrolment ? ` · year ${enrolment.yearOfStudy}` : ''}
           </p>
         </div>
-        <Link href={`/students/${studentId}`} className="text-sm text-accent underline underline-offset-2">
+        {can(principal, 'student.read') && <Link href={`/students/${studentId}`} className="text-sm text-accent underline underline-offset-2">
           Student profile
-        </Link>
+        </Link>}
       </div>
 
       <Panel title="Summary">
@@ -156,9 +156,11 @@ export default async function StudentRecordPage({
             {certificates.map((certificate) => (
               <li key={certificate.id} className="flex items-center justify-between px-4 py-3 text-sm">
                 <div>
-                  <Link href={`/certificates/${certificate.id}`} className="text-accent underline-offset-2 hover:underline">
+                  {can(principal, 'certificate.read') ? (<Link href={`/certificates/${certificate.id}`} className="text-accent underline-offset-2 hover:underline">
                     {certificate.title}
-                  </Link>
+                  </Link>) : (<span>
+                    {certificate.title}
+                  </span>)}
                   <span className="block text-xs tabular-nums text-muted">{certificate.number}</span>
                 </div>
                 <Tag tone={certificate.status === 'REVOKED' ? 'danger' : 'active'}>

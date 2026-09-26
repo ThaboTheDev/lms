@@ -16,8 +16,25 @@ function Submit() {
   );
 }
 
-export function MfaSetup({ secret, qr, uri }: { secret: string; qr: string; uri: string }) {
+/**
+ * Rendered at the same place whether or not two step sign in is on, so the
+ * recovery codes returned when it is turned on stay on screen: the page
+ * re-renders into its "on" state straight away, and a component that
+ * disappeared with it took the only copy of the codes with it.
+ */
+export function MfaSetup({ secret, qr, uri, enabled = false }: { secret: string | null; qr: string | null; uri: string | null; enabled?: boolean }) {
   const [state, action] = useActionState<FormState, FormData>(confirmMfa, {});
+
+  if (state.status === 'success' && state.message) {
+    return (
+      <Panel title="Save your recovery codes" description="They are shown once. Each one gets you in once if you lose your phone.">
+        <div className="px-4 py-4">
+          <FormMessage status={state.status} message={state.message} />
+        </div>
+      </Panel>
+    );
+  }
+  if (enabled || !secret || !qr) return null;
 
   return (
     <Panel

@@ -1,4 +1,6 @@
 import 'server-only';
+import { emailApplicant, sendInvitation } from './outbound';
+import { grantRoleOnce, requireRoleForInstitution } from './role-grants';
 import { prisma } from '@/lib/db';
 import { AppError, NotFoundError, ValidationError } from '@/lib/errors';
 import { recordAudit } from '@/lib/audit';
@@ -55,7 +57,7 @@ export async function submitApplication(institutionId: string, input: Applicatio
     select: { id: true, referenceNumber: true },
   });
 
-  // TODO(phase-6): queue the acknowledgement email carrying the reference number.
+  await emailApplicant(application.id);
   return application;
 }
 
@@ -130,7 +132,9 @@ export async function transitionApplication(
     after: { status: to, reference: application.referenceNumber },
   });
 
-  // TODO(phase-6): queue the applicant notification for this status change.
+  // The applicant hears about every move. The decision note is the
+  // institution's own record and stays internal; conditions are theirs to see.
+  await emailApplicant(applicationId);
   return updated;
 }
 
@@ -186,24 +190,8 @@ export async function enrolAcceptedApplicant(
         },
       }));
 
-    const studentRole = await tx.role.findUnique({
-      where: { institutionId_key: { institutionId, key: 'STUDENT' } },
-      select: { id: true },
-    });
-    if (studentRole) {
-      await tx.userRole.upsert({
-        where: {
-          userId_roleId_scopeType_scopeId: {
-            userId: user.id,
-            roleId: studentRole.id,
-            scopeType: 'INSTITUTION',
-            scopeId: null as never,
-          },
-        },
-        update: {},
-        create: { userId: user.id, roleId: studentRole.id, scopeType: 'INSTITUTION', institutionId },
-      });
-    }
+    const studentRole = await requireRoleForInstitution(tx, institutionId, 'STUDENT');
+    await grantRoleOnce(tx, { userId: user.id, roleId: studentRole.id, institutionId, grantedById: principal.userId });
 
     const profile = await tx.studentProfile.upsert({
       where: { userId: user.id },
@@ -262,6 +250,11 @@ export async function enrolAcceptedApplicant(
     institutionId,
     after: { studentId, studentNumber, reference: application.referenceNumber },
   });
+
+  // A new account is INVITED with a password nobody knows; the invitation is
+  // how the learner gets in. An existing account is left alone.
+  const learner = await prisma.studentProfile.findUnique({ where: { id: studentId }, select: { userId: true } });
+  if (learner) await sendInvitation(learner.userId, principal.displayName);
 
   return { studentId, alreadyEnrolled: false };
 }

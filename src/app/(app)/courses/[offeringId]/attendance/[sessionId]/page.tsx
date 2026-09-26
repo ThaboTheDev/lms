@@ -1,4 +1,12 @@
 import type { Metadata } from 'next';
+import QRCode from 'qrcode';
+import { env } from '@/lib/env';
+
+/** The check-in link as an SVG QR code. Generated on the server: nothing external is fetched. */
+async function checkInQr(offeringId: string, sessionId: string, code: string): Promise<string> {
+  const url = `${env.APP_URL.replace(/\/$/, '')}/courses/${offeringId}/attendance/${sessionId}?code=${encodeURIComponent(code)}`;
+  return QRCode.toString(url, { type: 'svg', margin: 0, errorCorrectionLevel: 'M' });
+}
 import { requirePrincipal } from '@/lib/auth/current-user';
 import { loadRegister } from '@/server/services/attendance';
 import { checkInWindow } from '@/server/services/attendance-rules';
@@ -10,11 +18,14 @@ export const metadata: Metadata = { title: 'Register' };
 
 export default async function SessionPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ offeringId: string; sessionId: string }>;
+  searchParams: Promise<{ code?: string }>;
 }) {
   const principal = await requirePrincipal();
   const { offeringId, sessionId } = await params;
+  const { code: scannedCode } = await searchParams;
   const { session, viewer } = await loadRegister(principal, sessionId);
 
   const window = checkInWindow(session);
@@ -46,7 +57,14 @@ export default async function SessionPage({
       {viewer === 'staff' ? (
         <>
           {session.selfCheckInEnabled && (
-            <Panel title="Check-in code" description="Read this out at the start of the session.">
+            <Panel title="Check-in code" description="Read this out at the start of the session, or put the QR code on the screen.">
+              {session.checkInCode && (
+                <div className="flex flex-wrap items-center gap-6 border-b border-line px-4 py-4">
+                  {/* Scanning opens this session with the code filled in; the learner still has to be signed in and enrolled. */}
+                  <div className="h-44 w-44 bg-white p-2" dangerouslySetInnerHTML={{ __html: await checkInQr(offeringId, sessionId, session.checkInCode) }} />
+                  <p className="max-w-xs text-sm text-muted">Learners scan this with their phone camera, sign in if they need to, and press Check in.</p>
+                </div>
+              )}
               <DescriptionList
                 items={[
                   { term: 'Code', value: <span className="font-serif text-2xl tracking-widest">{session.checkInCode}</span> },
@@ -68,6 +86,7 @@ export default async function SessionPage({
         <>
           {session.selfCheckInEnabled ? (
             <CheckInForm
+              code={scannedCode}
               sessionId={sessionId}
               offeringId={offeringId}
               status={session.records[0]?.status ?? 'NOT_MARKED'}

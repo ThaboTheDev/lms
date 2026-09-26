@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import './globals.css';
 import { BRAND } from '@/lib/brand';
 
@@ -9,7 +10,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Reading the request makes every page render per request, which is what
+  // lets each response carry its own CSP nonce (set in src/middleware.ts).
+  // A page prerendered at build time would ship inline scripts no nonce covers.
+  await headers();
+
   return (
     <html lang="en-ZA">
       <body className="font-sans antialiased">{children}</body>

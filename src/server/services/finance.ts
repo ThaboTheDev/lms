@@ -274,7 +274,7 @@ export async function loadInvoice(principal: Principal, invoiceId: string) {
         orderBy: { paidOn: 'desc' },
         select: {
           id: true, amount: true, method: true, reference: true, paidOn: true, status: true,
-          receipt: { select: { number: true } },
+          receipt: { select: { id: true, number: true } },
         },
       },
       pops: {
@@ -432,7 +432,7 @@ export async function loadAccount(principal: Principal, studentId: string) {
       orderBy: { paidOn: 'desc' },
       select: {
         id: true, amount: true, method: true, reference: true, paidOn: true,
-        receipt: { select: { number: true } },
+        receipt: { select: { id: true, number: true } },
       },
     }),
     prisma.proofOfPayment.findMany({

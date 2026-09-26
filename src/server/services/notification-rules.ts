@@ -16,6 +16,8 @@ export type NotificationType =
   | 'admission.decision'
   | 'payment.status'
   | 'certificate.issued'
+  | 'ticket.raised'
+  | 'live.scheduled'
   | 'system.notice';
 
 export type Channel = 'IN_APP' | 'EMAIL' | 'SMS' | 'PUSH';
@@ -45,6 +47,8 @@ export const CHANNEL_DEFAULTS: Record<NotificationType, Channel[]> = {
   'admission.decision': ['IN_APP', 'EMAIL'],
   'payment.status': ['IN_APP', 'EMAIL'],
   'certificate.issued': ['IN_APP', 'EMAIL'],
+  'ticket.raised': ['IN_APP', 'EMAIL'],
+  'live.scheduled': ['IN_APP', 'EMAIL'],
   'system.notice': ['IN_APP', 'EMAIL'],
 };
 
@@ -129,6 +133,46 @@ export function buildDigests(pending: PendingNotification[]): {
   }
 
   return { digests, immediate };
+}
+
+export type DigestFrequency = 'OFF' | 'DAILY' | 'WEEKLY';
+
+const DIGEST_PERIOD_MS: Record<Exclude<DigestFrequency, 'OFF'>, number> = {
+  DAILY: 24 * 60 * 60 * 1000,
+  WEEKLY: 7 * 24 * 60 * 60 * 1000,
+};
+
+/** Whether a notice waits for this person's digest instead of being emailed now. Mandatory notices never wait. */
+export function waitsForDigest(frequency: DigestFrequency, type: NotificationType): boolean {
+  return frequency !== 'OFF' && !MANDATORY_TYPES.includes(type);
+}
+
+/** Whether a person's digest is due, and from when it collects. */
+export function digestDue(
+  frequency: DigestFrequency,
+  lastDigestAt: Date | null,
+  at = new Date(),
+): { due: boolean; since: Date } {
+  if (frequency === 'OFF') return { due: false, since: at };
+  const period = DIGEST_PERIOD_MS[frequency];
+  const since = lastDigestAt ?? new Date(at.getTime() - period);
+  // Hourly job: a few minutes early is on time, so a daily digest does not drift an hour a day.
+  return { due: !lastDigestAt || at.getTime() - lastDigestAt.getTime() >= period - 10 * 60 * 1000, since };
+}
+
+/** Subject and lines for one digest email; the newest notices first, at most thirty listed. */
+export function digestContent(
+  items: { title: string; body?: string | null; linkUrl?: string | null; createdAt: Date }[],
+  frequency: Exclude<DigestFrequency, 'OFF'>,
+  institution: string,
+): { subject: string; lines: { title: string; body: string; linkUrl: string | null }[]; more: number } {
+  const sorted = [...items].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  const shown = sorted.slice(0, 30);
+  return {
+    subject: `${items.length} ${items.length === 1 ? 'update' : 'updates'} ${frequency === 'DAILY' ? 'today' : 'this week'} · ${institution}`,
+    lines: shown.map((item) => ({ title: item.title, body: (item.body ?? '').slice(0, 280), linkUrl: item.linkUrl ?? null })),
+    more: sorted.length - shown.length,
+  };
 }
 
 export type AudienceSpec =

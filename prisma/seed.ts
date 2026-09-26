@@ -119,18 +119,17 @@ async function main() {
 
     const roleId = roleIds.get(roleKey);
     if (roleId) {
-      await prisma.userRole.upsert({
-        where: {
-          userId_roleId_scopeType_scopeId: {
-            userId: user.id,
-            roleId,
-            scopeType: 'INSTITUTION',
-            scopeId: null as never,
-          },
-        },
-        update: {},
-        create: { userId: user.id, roleId, scopeType: 'INSTITUTION', institutionId: institution.id },
+      // Find-then-create: Prisma refuses null inside a compound-unique upsert,
+      // and an institution-wide grant has no scope id.
+      const existingGrant = await prisma.userRole.findFirst({
+        where: { userId: user.id, roleId, scopeType: 'INSTITUTION', scopeId: null },
+        select: { id: true },
       });
+      if (!existingGrant) {
+        await prisma.userRole.create({
+          data: { userId: user.id, roleId, scopeType: 'INSTITUTION', institutionId: institution.id },
+        });
+      }
     }
     return user;
   }
@@ -139,6 +138,7 @@ async function main() {
   await createUser('principal@kopano.example.ac.za', 'Sipho', 'Mahlangu', 'INSTITUTION_ADMIN');
   await createUser('registrar@kopano.example.ac.za', 'Anele', 'Dube', 'REGISTRAR');
   await createUser('academic@kopano.example.ac.za', 'Refilwe', 'Motaung', 'ACADEMIC_ADMIN');
+  await createUser('coordinator@kopano.example.ac.za', 'Lindiwe', 'Zulu', 'PROGRAMME_COORDINATOR');
   const lecturer = await createUser('lecturer@kopano.example.ac.za', 'Thabo', 'Khumalo', 'LECTURER');
   await createUser('finance@kopano.example.ac.za', 'Zanele', 'Botha', 'FINANCE_OFFICER');
   await createUser('quality@kopano.example.ac.za', 'Naledi', 'Pillay', 'QA_OFFICER');
@@ -763,14 +763,15 @@ async function main() {
     {
       key: 'grade.released',
       name: 'Result released',
-      subject: 'Your result for {{title}} is available',
+      // {{title}} is the notice's own headline, e.g. "Results released: Week 2 quiz".
+      subject: '{{title}} · {{institution}}',
       bodyHtml:
         '<p>Hello {{firstName}},</p><p>{{body}}</p><p><a href="{{link}}">Open it in the platform</a></p><p>{{institution}}</p>',
     },
     {
       key: 'assessment.published',
       name: 'Assessment set',
-      subject: 'New assessment: {{title}}',
+      subject: '{{title}} · {{institution}}',
       bodyHtml:
         '<p>Hello {{firstName}},</p><p>{{body}}</p><p><a href="{{link}}">See what is required</a></p><p>{{institution}}</p>',
     },

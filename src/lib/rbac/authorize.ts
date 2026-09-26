@@ -106,6 +106,11 @@ export function requirePermission(
   }
 }
 
+/** Throws AuthorisationError unless the principal holds at least one of the permissions. */
+export function requireAnyPermission(principal: Principal, permissions: PermissionKey[], scope?: ResourceScope): void {
+  if (!canAny(principal, permissions, scope)) throw new AuthorisationError();
+}
+
 /**
  * Tenant guard. Every query that loads a record by id must also prove the
  * record belongs to the caller's institution, otherwise an id from one tenant

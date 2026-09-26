@@ -117,6 +117,8 @@ services:
       redis: { condition: service_healthy }
     environment:
       NODE_ENV: production
+      # The institution's time zone: form times and displayed times are local.
+      TZ: ${TZ:-Africa/Johannesburg}
       HOSTNAME: "0.0.0.0"
       # The web image is a Next.js standalone build with no Prisma CLI: the
       # migrate service owns the schema, so the entrypoint must not try.
@@ -141,11 +143,17 @@ services:
       SMTP_USER: ${SMTP_USER}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       MAIL_FROM: "${MAIL_FROM}"
-      MALWARE_SCANNER_URL: ${MALWARE_SCANNER_URL:-}
+      MALWARE_SCANNER_URL:
+      MALWARE_SCANNER_TOKEN:
       # PUBLIC_INSTITUTION_SLUG is deliberately not passed through: this
       # deployment serves the single default institution. Add the key here
       # only when a public form must pin one institution, and never with an
       # empty value.
+      # Optional second key for the first-run /setup page. Written without a
+      # value on purpose: Compose passes it through when the shell or .env
+      # sets it, and leaves it out of the container entirely when nothing
+      # does, instead of injecting an empty string the way ${VAR:-} would.
+      SETUP_TOKEN:
     # Loopback only: the existing Apache or Nginx proxies learn.msri.online
     # to this port. Nothing else on the box may reach the app directly.
     ports: ['127.0.0.1:3000:3000']
@@ -164,6 +172,7 @@ services:
       redis: { condition: service_healthy }
     environment:
       NODE_ENV: production
+      TZ: ${TZ:-Africa/Johannesburg}
       NODE_OPTIONS: "--conditions=react-server"
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-lms}?schema=public&connection_limit=${DB_POOL_WORKER:-3}
       REDIS_URL: redis://redis:6379
@@ -176,6 +185,10 @@ services:
       SMTP_USER: ${SMTP_USER}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       MAIL_FROM: "${MAIL_FROM}"
+      # The worker runs the malware scan, so it needs the scanner too. Written
+      # without values: passed through when set, absent (not empty) when not.
+      MALWARE_SCANNER_URL:
+      MALWARE_SCANNER_TOKEN:
       # The worker runs no migrations: one process owns the schema.
       RUN_MIGRATIONS: 'false'
       SYNC_RBAC: 'false'
@@ -201,6 +214,25 @@ services:
     entrypoint: ['/bin/sh', '-c']
     command: ['while true; do /usr/local/bin/backup.sh; sleep 86400; done']
 
+  # Optional ClamAV daemon for the malware scan, off unless asked for:
+  #   docker compose -f docker-compose.prod.yml --profile scanner up -d
+  # with MALWARE_SCANNER_URL=clamd://clamav:3310 in .env. The worker streams
+  # each upload to it; with a scanner configured only files it has cleared
+  # are served to anyone but the uploader.
+  # clamd keeps its signature database in memory: about 1.2 GB, more while it
+  # loads new signatures. That does not fit beside Moodle on the 4 GB host
+  # this file is sized for, so run it on a larger host, or point
+  # MALWARE_SCANNER_URL at a hosted scanner instead.
+  clamav:
+    image: clamav/clamav:stable
+    profiles: ['scanner']
+    restart: unless-stopped
+    mem_limit: 1536m
+    memswap_limit: 1536m   # equal to mem_limit: no swap allowance
+    volumes:
+      - clamav-data:/var/lib/clamav
+
 volumes:
   db-data:
   redis-data:
+  clamav-data:

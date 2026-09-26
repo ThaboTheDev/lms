@@ -1,12 +1,13 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { useHydrated } from '@/lib/hooks/use-hydrated';
 import { useFormStatus } from 'react-dom';
 import { Button, Field, Input } from '@/components/ui/primitives';
 import { Checkbox, FormMessage, Select, Textarea } from '@/components/ui/form';
 import { FileUploader } from '@/components/ui/file-uploader';
 import type { FormState } from '@/lib/validation/common';
-import { addLesson, addLessonBlock, addSection } from './actions';
+import { addLesson, addLessonBlock, addSection, saveLessonLink } from './actions';
 
 function Submit({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -65,6 +66,7 @@ export function AddLessonForm({ offeringId, sectionId }: { offeringId: string; s
           <option value="DOCUMENT">Document</option>
           <option value="EXTERNAL_LINK">Link</option>
           <option value="LIVE_SESSION">Live class</option>
+          <option value="ASSESSMENT">Assessment</option>
           <option value="DISCUSSION">Discussion</option>
           <option value="SCORM">Interactive package</option>
           <option value="H5P">Activity</option>
@@ -104,6 +106,10 @@ const FILE_KINDS = ['FILE', 'IMAGE', 'VIDEO', 'AUDIO'];
 export function AddBlockForm({ offeringId, lessonId }: { offeringId: string; lessonId: string }) {
   const [state, action] = useActionState<FormState, FormData>(addLessonBlock, {});
   const [kind, setKind] = useState('RICH_TEXT');
+  // Until the scripts run, choosing a kind cannot reveal its field, so every
+  // field shows and the server reads the one the chosen kind needs.
+  const hydrated = useHydrated();
+  const shows = (...kinds: string[]) => !hydrated || kinds.includes(kind);
 
   return (
     <form action={action} className="space-y-3">
@@ -124,30 +130,91 @@ export function AddBlockForm({ offeringId, lessonId }: { offeringId: string; les
         </Select>
       </Field>
 
-      {(kind === 'RICH_TEXT' || kind === 'CALLOUT') && (
+      {shows('RICH_TEXT', 'CALLOUT') && (
         <Field
-          label={kind === 'CALLOUT' ? 'Callout text' : 'Text'}
+          label={!hydrated ? 'Text (for text and callouts)' : kind === 'CALLOUT' ? 'Callout text' : 'Text'}
           htmlFor="block-text"
-          hint={kind === 'RICH_TEXT' ? 'Leave a blank line between paragraphs' : undefined}
+          hint={!hydrated || kind === 'RICH_TEXT' ? 'Leave a blank line between paragraphs' : undefined}
           error={state.fieldErrors?.text}
         >
           <Textarea id="block-text" name="text" rows={6} />
         </Field>
       )}
 
-      {(kind === 'LINK' || kind === 'EMBED') && (
-        <Field label="Web address" htmlFor="block-url" error={state.fieldErrors?.url}>
+      {shows('LINK', 'EMBED') && (
+        <Field
+          label={hydrated ? 'Web address' : 'Web address (for links and embedded pages)'}
+          htmlFor="block-url"
+          hint={!hydrated || kind === 'EMBED' ? 'Videos from YouTube or Vimeo and shared Google or Microsoft documents play inside the lesson.' : undefined}
+          error={state.fieldErrors?.url}
+        >
           <Input id="block-url" name="url" type="url" placeholder="https://" />
         </Field>
       )}
 
-      {FILE_KINDS.includes(kind) && (
-        <Field label="File" htmlFor="fileId-input" error={state.fieldErrors?.fileId}>
+      {shows(...FILE_KINDS) && (
+        <Field label={hydrated ? 'File' : 'File (for documents, images, video and audio)'} htmlFor="fileId-input" error={state.fieldErrors?.fileId}>
           <FileUploader name="fileId" folder="course-content" label="Choose a file to upload" />
         </Field>
       )}
 
       <Submit label="Add to lesson" />
+    </form>
+  );
+}
+
+const LINK_KIND_LABEL: Record<string, string> = {
+  live: 'Live classes',
+  assessment: 'Assessments',
+  forum: 'Forums',
+  thread: 'Threads',
+  survey: 'Surveys',
+  package: 'Interactive packages',
+};
+
+/** Chooses what a live class, assessment, discussion, survey or package lesson opens. */
+export function LessonLinkForm({
+  offeringId,
+  lessonId,
+  current,
+  groups,
+  emptyHint,
+}: {
+  offeringId: string;
+  lessonId: string;
+  current: string | null;
+  groups: { kind: string; targets: { ref: string; label: string }[] }[];
+  emptyHint: string;
+}) {
+  const [state, action] = useActionState<FormState, FormData>(saveLessonLink, {});
+  const hasTargets = groups.some((group) => group.targets.length > 0);
+
+  return (
+    <form action={action} className="space-y-3">
+      <FormMessage status={state.status} message={state.message} />
+      <input type="hidden" name="offeringId" value={offeringId} />
+      <input type="hidden" name="lessonId" value={lessonId} />
+      {hasTargets ? (
+        <Field label="This lesson opens" htmlFor={`lesson-link-${lessonId}`}>
+          <Select id={`lesson-link-${lessonId}`} name="ref" defaultValue={current ?? ''}>
+            <option value="">Nothing yet</option>
+            {groups
+              .filter((group) => group.targets.length > 0)
+              .map((group) => (
+                <optgroup key={group.kind} label={LINK_KIND_LABEL[group.kind] ?? group.kind}>
+                  {group.targets.map((target) => (
+                    <option key={target.ref} value={target.ref}>
+                      {target.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+          </Select>
+        </Field>
+      ) : (
+        <p className="text-sm text-muted">{emptyHint}</p>
+      )}
+      {hasTargets && <Submit label="Save link" />}
     </form>
   );
 }

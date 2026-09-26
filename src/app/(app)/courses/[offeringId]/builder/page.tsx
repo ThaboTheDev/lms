@@ -6,7 +6,9 @@ import { assertCanEditOffering } from '@/server/services/course-builder';
 import { humanFileSize } from '@/lib/storage/keys';
 import { Button, Panel, Tag } from '@/components/ui/primitives';
 import { Breadcrumbs } from '@/components/ui/navigation';
-import { AddSectionForm, AddLessonForm, AddBlockForm } from './builder-forms';
+import { AddSectionForm, AddLessonForm, AddBlockForm, LessonLinkForm } from './builder-forms';
+import { LINK_KINDS_FOR_TYPE } from '@/lib/lesson-links';
+import { linkTargets } from '@/server/services/lesson-links';
 import {
   moveLessonAction,
   moveSectionAction,
@@ -90,6 +92,7 @@ export default async function BuilderPage({
           id: true,
           title: true,
           type: true,
+          externalRef: true,
           blocks: {
             orderBy: { orderIndex: 'asc' },
             select: {
@@ -103,6 +106,17 @@ export default async function BuilderPage({
         },
       })
     : null;
+
+  const linkKinds = selectedLesson ? LINK_KINDS_FOR_TYPE[selectedLesson.type] : undefined;
+  const targets = linkKinds ? await linkTargets(principal, offeringId) : null;
+  const LINK_EMPTY_HINT: Record<string, string> = {
+    LIVE_SESSION: 'Schedule a live class on the course page first, then link it here.',
+    ASSESSMENT: 'Create the assessment under Assessments first, then link it here.',
+    DISCUSSION: 'The course forum appears here once the delivery has one.',
+    SURVEY: 'Create a survey under Surveys first, then link it here.',
+    SCORM: 'Upload the package under Interactive packages first, then link it here.',
+    H5P: 'Upload the activity under Interactive packages first, then link it here.',
+  };
 
   return (
     <div className="space-y-6">
@@ -279,6 +293,23 @@ export default async function BuilderPage({
                   </ol>
                 )}
               </Panel>
+
+              {linkKinds && targets && (
+                <Panel
+                  title="What this lesson opens"
+                  description="Learners see it at the top of the lesson, with anything you add below as context."
+                >
+                  <div className="px-4 py-4">
+                    <LessonLinkForm
+                      offeringId={offeringId}
+                      lessonId={selectedLesson.id}
+                      current={selectedLesson.externalRef}
+                      groups={linkKinds.map((kind) => ({ kind, targets: targets[kind] }))}
+                      emptyHint={LINK_EMPTY_HINT[selectedLesson.type] ?? 'Nothing to link to yet.'}
+                    />
+                  </div>
+                </Panel>
+              )}
 
               <Panel title="Add to this lesson">
                 <div className="px-4 py-4">

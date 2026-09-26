@@ -35,7 +35,7 @@ export function TranscriptActions({
                 {snapshot.generatedAt.toLocaleString('en-ZA', { dateStyle: 'long', timeStyle: 'short' })}
                 {snapshot.academicYear ? ` · ${snapshot.academicYear.label}` : ''}
               </span>
-              <span className="text-xs text-muted">snapshot</span>
+              <a href={`/records/${studentId}/transcripts/${snapshot.id}`} className="text-xs text-accent underline underline-offset-2">Open the issued copy</a>
             </li>
           ))}
         </ul>

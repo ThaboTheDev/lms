@@ -1,4 +1,7 @@
 import type { Metadata } from 'next';
+import { prisma } from '@/lib/db';
+import { ActionButton, ActionForm } from '@/components/ui/action-form';
+import { resendStudentInvitation, saveStudentContact } from './actions';
 import Link from 'next/link';
 import { getStudent } from '@/server/services/students';
 import { requirePrincipal } from '@/lib/auth/current-user';
@@ -55,6 +58,9 @@ export default async function StudentRecordPage({
   const { tab = 'overview' } = await searchParams;
 
   const { student, programmeEnrolments, courseEnrolments } = await getStudent(principal, id);
+  const account = await prisma.studentProfile.findUnique({ where: { id }, select: { userId: true, user: { select: { status: true } } } });
+  const accountStatus = account?.user.status;
+  const accountUserId = account?.userId;
   const enrolments = programmeEnrolments as Enrolment[];
   const courses = courseEnrolments as CourseEnrolment[];
   const current = enrolments[0];
@@ -67,7 +73,15 @@ export default async function StudentRecordPage({
 
   return (
     <div className="space-y-6">
-      <Breadcrumbs trail={[{ label: 'Students', href: '/students' }, { label: student.studentNumber }]} />
+      <Breadcrumbs
+        trail={[
+          // Course staff can open their own learners but not the whole register.
+          can(principal, 'student.read', { institutionId: principal.institutionId ?? '' })
+            ? { label: 'Students', href: '/students' }
+            : { label: 'Students' },
+          { label: student.studentNumber },
+        ]}
+      />
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -219,6 +233,35 @@ export default async function StudentRecordPage({
             </tbody>
           </table>
         </Panel>
+      )}
+      {can(principal, 'student.manage', { institutionId: principal.institutionId ?? '' }) && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <ActionForm
+            title="Contact details"
+            action={saveStudentContact}
+            submitLabel="Save contact details"
+            fields={[
+              { name: 'studentId', label: '', type: 'hidden', defaultValue: student.id },
+              { name: 'addressLine1', label: 'Address', defaultValue: (student as { addressLine1?: string | null }).addressLine1 ?? '' },
+              { name: 'addressLine2', label: 'Address line 2', defaultValue: (student as { addressLine2?: string | null }).addressLine2 ?? '' },
+              { name: 'city', label: 'City or town', defaultValue: (student as { city?: string | null }).city ?? '' },
+              { name: 'province', label: 'Province', defaultValue: (student as { province?: string | null }).province ?? '' },
+              { name: 'postalCode', label: 'Postal code', defaultValue: (student as { postalCode?: string | null }).postalCode ?? '' },
+              { name: 'homeLanguage', label: 'Home language', defaultValue: (student as { homeLanguage?: string | null }).homeLanguage ?? '' },
+              { name: 'emergencyName', label: 'Emergency contact', defaultValue: (student as { emergencyName?: string | null }).emergencyName ?? '' },
+              { name: 'emergencyPhone', label: 'Their phone', defaultValue: (student as { emergencyPhone?: string | null }).emergencyPhone ?? '' },
+              { name: 'emergencyRelation', label: 'Relationship', defaultValue: (student as { emergencyRelation?: string | null }).emergencyRelation ?? '' },
+            ]}
+          />
+          {accountStatus === 'INVITED' && (
+            <Panel title="Account not set up yet">
+              <div className="space-y-3 px-4 py-4 text-sm">
+                <p className="text-muted">This learner has not chosen a password yet, so they cannot sign in. The link in the invitation lasts seven days.</p>
+                <ActionButton action={resendStudentInvitation} hidden={{ userId: accountUserId ?? '' }} label="Send a new invitation" />
+              </div>
+            </Panel>
+          )}
+        </div>
       )}
     </div>
   );

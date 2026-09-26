@@ -18,7 +18,7 @@ export async function newConversation(_prev: FormState, formData: FormData): Pro
 
   let threadId: string;
   try {
-    const thread = await startThread(principal, { recipientId, subject, body });
+    const thread = await startThread(principal, { recipientId, subject, body, fileIds: [String(formData.get('fileId') ?? '')].filter(Boolean) });
     threadId = thread.id;
   } catch (error) {
     if (error instanceof AppError) return { status: 'error', message: error.message };
@@ -37,7 +37,7 @@ export async function sendReply(_prev: FormState, formData: FormData): Promise<F
   if (body.length < 1) return { status: 'error', message: 'Write something first.' };
 
   try {
-    await replyToThread(principal, threadId, body);
+    await replyToThread(principal, threadId, body, [String(formData.get('fileId') ?? '')].filter(Boolean));
   } catch (error) {
     if (error instanceof AppError) return { status: 'error', message: error.message };
     throw error;

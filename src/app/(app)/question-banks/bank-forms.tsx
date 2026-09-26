@@ -1,6 +1,8 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { useHydrated } from '@/lib/hooks/use-hydrated';
+import { OPTION_LINE_TYPES } from '@/lib/validation/question-form';
 import { useFormStatus } from 'react-dom';
 import { Button, Field, Input } from '@/components/ui/primitives';
 import { FormMessage, Select, Textarea } from '@/components/ui/form';
@@ -47,11 +49,14 @@ export function NewBankForm({ courses }: { courses: { id: string; code: string; 
   );
 }
 
-const OPTION_TYPES = ['MULTIPLE_CHOICE', 'MULTIPLE_RESPONSE', 'MATCHING', 'ORDERING', 'FILL_BLANK'];
 
 export function NewQuestionForm({ bankId }: { bankId: string }) {
   const [state, action] = useActionState<FormState, FormData>(newQuestion, {});
   const [type, setType] = useState('MULTIPLE_CHOICE');
+  // Before the scripts run the choice of type cannot reveal its fields, so
+  // every field shows, each saying which types it is for.
+  const hydrated = useHydrated();
+  const shows = (...types: string[]) => !hydrated || types.includes(type);
 
   const optionHint = {
     MULTIPLE_CHOICE: 'One option per line. Put an asterisk at the end of the correct one.',
@@ -86,14 +91,19 @@ export function NewQuestionForm({ bankId }: { bankId: string }) {
         <Textarea id="prompt" name="prompt" rows={3} required />
       </Field>
 
-      {OPTION_TYPES.includes(type) && (
-        <Field label="Options" htmlFor="options" hint={optionHint} error={state.fieldErrors?.options}>
+      {shows(...OPTION_LINE_TYPES) && (
+        <Field
+          label={hydrated ? 'Options' : 'Options (multiple choice, multiple response, matching, ordering, fill in the blank)'}
+          htmlFor="options"
+          hint={hydrated ? optionHint : 'One per line. End each correct option with an asterisk; write pairs and blanks as "item = match".'}
+          error={state.fieldErrors?.options}
+        >
           <Textarea id="options" name="options" rows={5} />
         </Field>
       )}
 
-      {type === 'TRUE_FALSE' && (
-        <Field label="Correct answer" htmlFor="trueFalseAnswer">
+      {shows('TRUE_FALSE') && (
+        <Field label={hydrated ? 'Correct answer' : 'Correct answer (true or false questions)'} htmlFor="trueFalseAnswer">
           <Select id="trueFalseAnswer" name="trueFalseAnswer" defaultValue="true">
             <option value="true">True</option>
             <option value="false">False</option>
@@ -101,9 +111,9 @@ export function NewQuestionForm({ bankId }: { bankId: string }) {
         </Field>
       )}
 
-      {type === 'SHORT_ANSWER' && (
+      {shows('SHORT_ANSWER') && (
         <Field
-          label="Accepted answers"
+          label={hydrated ? 'Accepted answers' : 'Accepted answers (short answer questions)'}
           htmlFor="acceptedAnswers"
           hint="One per line. Case and spacing are ignored."
         >
@@ -111,12 +121,12 @@ export function NewQuestionForm({ bankId }: { bankId: string }) {
         </Field>
       )}
 
-      {type === 'NUMERICAL' && (
+      {shows('NUMERICAL') && (
         <>
-          <Field label="Correct value" htmlFor="options" hint="Put the number on one line.">
-            <Input id="options" name="options" placeholder="3.14*" />
+          <Field label={hydrated ? 'Correct value' : 'Correct value (numerical questions)'} htmlFor="correctValue" hint="The number learners must give.">
+            <Input id="correctValue" name="correctValue" inputMode="decimal" placeholder="3.14" />
           </Field>
-          <Field label="Tolerance" htmlFor="tolerance" hint="How far off is still correct">
+          <Field label={hydrated ? 'Tolerance' : 'Tolerance (numerical questions)'} htmlFor="tolerance" hint="How far off is still correct">
             <Input id="tolerance" name="tolerance" type="number" step="any" min={0} defaultValue={0} />
           </Field>
         </>

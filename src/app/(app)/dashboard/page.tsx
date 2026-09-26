@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/db';
 import { requirePrincipal } from '@/lib/auth/current-user';
-import { can } from '@/lib/rbac/authorize';
+import { can, canAny } from '@/lib/rbac/authorize';
+import { setupProgress } from '@/server/services/academic-setup';
 import Link from 'next/link';
 import { BRAND } from '@/lib/brand';
 import { Panel, Tag } from '@/components/ui/primitives';
@@ -36,10 +37,17 @@ export default async function DashboardPage() {
       : Promise.resolve(null),
   ]);
 
-  const [announcements, upcomingEvents] = await Promise.all([
+  const [announcements, upcomingEvents, setup] = await Promise.all([
     listAnnouncements(principal, 4),
     upcomingForPrincipal(principal),
+    canAny(principal, ['programme.manage', 'course.manage', 'settings.manage']) && institutionId
+      ? setupProgress(institutionId)
+      : Promise.resolve(null),
   ]);
+  // A new institution has nothing to teach until these exist; say so up front.
+  const setupIncomplete =
+    setup !== null &&
+    (setup.currentYears === 0 || setup.terms === 0 || setup.programmes === 0 || setup.courses === 0 || setup.offerings === 0 || setup.staffed === 0 || setup.schemes === 0);
 
   const metrics = [
     { label: 'Registered students', value: students },
@@ -61,6 +69,16 @@ export default async function DashboardPage() {
           {new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
         </p>
       </section>
+
+      {setupIncomplete && (
+        <Panel title="Finish setting up the institution">
+          <p className="px-4 py-4 text-sm">
+            Before learners can be registered on courses the institution needs its academic year and terms, programmes,
+            courses scheduled into a term with a teaching team, and a grading scheme.{' '}
+            <Link href="/admin/academic" className="font-medium text-accent underline underline-offset-2">Open the setup checklist</Link>
+          </p>
+        </Panel>
+      )}
 
       {metrics.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

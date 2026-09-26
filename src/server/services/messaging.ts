@@ -1,4 +1,5 @@
 import 'server-only';
+import { claimUploads } from './attachments';
 import { prisma } from '@/lib/db';
 import { AppError, NotFoundError } from '@/lib/errors';
 import { can, requireSameInstitution, type Principal } from '@/lib/rbac/authorize';
@@ -129,8 +130,9 @@ export async function loadThread(principal: Principal, threadId: string) {
  */
 export async function startThread(
   principal: Principal,
-  input: { recipientId: string; subject?: string; body: string },
+  input: { recipientId: string; subject?: string; body: string; fileIds?: string[] },
 ) {
+  const attach = await claimUploads(principal, input.fileIds ?? []);
   const institutionId = principal.institutionId;
   if (!institutionId) throw new NotFoundError('Institution');
 
@@ -161,7 +163,13 @@ export async function startThread(
           { userId: input.recipientId },
         ],
       },
-      messages: { create: { senderId: principal.userId, body: input.body.trim() } },
+      messages: {
+        create: {
+          senderId: principal.userId,
+          body: input.body.trim(),
+          ...(attach.length ? { attachments: { create: attach.map((fileId) => ({ fileId })) } } : {}),
+        },
+      },
     },
     select: { id: true, subject: true },
   });
@@ -178,7 +186,7 @@ export async function startThread(
   return thread;
 }
 
-export async function replyToThread(principal: Principal, threadId: string, body: string) {
+export async function replyToThread(principal: Principal, threadId: string, body: string, fileIds: string[] = []) {
   const thread = await prisma.messageThread.findUnique({
     where: { id: threadId },
     select: {
@@ -191,8 +199,14 @@ export async function replyToThread(principal: Principal, threadId: string, body
     throw new AppError('This conversation is not yours.', 403, 'forbidden');
   }
 
+  const attach = await claimUploads(principal, fileIds);
   const message = await prisma.message.create({
-    data: { threadId, senderId: principal.userId, body: body.trim() },
+    data: {
+      threadId,
+      senderId: principal.userId,
+      body: body.trim(),
+      ...(attach.length ? { attachments: { create: attach.map((fileId) => ({ fileId })) } } : {}),
+    },
     select: { id: true },
   });
 

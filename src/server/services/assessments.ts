@@ -1,4 +1,5 @@
 import 'server-only';
+import { notifyUsers } from './notifications';
 import { prisma } from '@/lib/db';
 import { AppError, NotFoundError } from '@/lib/errors';
 import { recordAudit } from '@/lib/audit';
@@ -119,6 +120,14 @@ export async function updateAssessment(
     data: input as never,
   });
 
+  // A moved deadline moves on the calendar too, or learners plan to the old one.
+  if (updated.dueAt && existing.dueAt?.getTime() !== updated.dueAt.getTime()) {
+    await prisma.calendarEvent.updateMany({
+      where: { assessmentId },
+      data: { startsAt: updated.dueAt, endsAt: updated.dueAt },
+    });
+  }
+
   await recordAudit(principal, {
     action: 'assessment.updated',
     entityType: 'Assessment',
@@ -184,7 +193,20 @@ export async function publishAssessment(principal: Principal, assessmentId: stri
     after: { status: 'PUBLISHED' },
   });
 
-  // TODO(phase-6): notify enrolled learners that an assessment has opened.
+  const enrolled = (await prisma.courseEnrolment.findMany({
+    where: { offeringId: assessment.offeringId, status: 'ACTIVE' },
+    select: { student: { select: { userId: true } } },
+  })) as { student: { userId: string } }[];
+  await notifyUsers(
+    assessment.institutionId,
+    enrolled.map((row) => row.student.userId),
+    {
+      type: 'assessment.published',
+      title: `New assessment: ${assessment.title}`,
+      body: `Due ${assessment.dueAt.toLocaleString('en-ZA', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Africa/Johannesburg' })}.`,
+      linkUrl: `/courses/${assessment.offeringId}/assessments/${assessmentId}`,
+    },
+  );
   return updated;
 }
 

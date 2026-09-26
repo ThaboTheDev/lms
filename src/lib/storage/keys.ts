@@ -39,8 +39,10 @@ const ALLOWED_MIME_TYPES = new Set([
   'video/mp4',
   'video/quicktime',
   'video/webm',
-  // Archives
+  // Archives. Windows browsers call a ZIP application/x-zip-compressed.
   'application/zip',
+  'application/x-zip-compressed',
+  'application/x-zip',
 ]);
 
 /**

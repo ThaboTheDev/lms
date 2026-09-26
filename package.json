@@ -23,8 +23,9 @@
     "db:studio": "prisma studio",
     "db:seed": "prisma db seed",
     "rbac:sync": "tsx scripts/sync-permissions.ts",
-    "worker": "tsx scripts/worker.ts",
-    "atrisk": "tsx scripts/refresh-at-risk.ts"
+    "worker": "tsx --conditions=react-server scripts/worker.ts",
+    "atrisk": "tsx --conditions=react-server scripts/run-job.ts atrisk.evaluate",
+    "job": "tsx --conditions=react-server scripts/run-job.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.670.0",
@@ -34,15 +35,20 @@
     "bullmq": "^5.34.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "fast-xml-parser": "^5.11.1",
+    "fflate": "^0.8.3",
+    "h5p-standalone": "^3.8.2",
     "ioredis": "^5.4.1",
     "next": "^16.3.5",
     "nodemailer": "^10.0.10",
     "otplib": "^12.0.1",
+    "pdf-lib": "^1.17.1",
     "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "server-only": "^0.0.1",
     "tailwind-merge": "^2.6.0",
+    "web-push": "^3.6.7",
     "zod": "^3.24.1"
   },
   "devDependencies": {
@@ -51,6 +57,7 @@
     "@types/qrcode": "^1.5.5",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
+    "@types/web-push": "^3.6.4",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.18.0",
     "eslint-config-next": "^16.3.5",

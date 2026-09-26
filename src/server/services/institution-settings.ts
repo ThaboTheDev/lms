@@ -1,4 +1,5 @@
 import 'server-only';
+import { normaliseHost } from '@/lib/hosts';
 import { prisma } from '@/lib/db';
 import { AppError, NotFoundError } from '@/lib/errors';
 import { recordAudit } from '@/lib/audit';
@@ -38,6 +39,8 @@ export interface InstitutionSettingsInput {
   currency: string;
   certificatePrefix: string;
   footerText?: string | null;
+  /** The host name public pages answer on for this institution; blank for none. */
+  domain?: string | null;
 }
 
 export async function getInstitutionSettings(principal: Principal) {
@@ -81,6 +84,16 @@ export async function updateInstitutionSettings(
     throw new AppError('Enter a valid address for automated email.', 422, 'validation_failed');
   }
 
+  const rawDomain = normaliseOptional(input.domain ?? null);
+  const domain = rawDomain ? normaliseHost(rawDomain) : null;
+  if (rawDomain && !domain) {
+    throw new AppError('Enter the host name only, such as learn.example.ac.za.', 422, 'validation_failed');
+  }
+  if (domain) {
+    const taken = await prisma.institution.findFirst({ where: { domain, id: { not: institutionId } }, select: { id: true } });
+    if (taken) throw new AppError('Another institution on this system already uses that host name.', 409, 'domain_taken');
+  }
+
   const before = await prisma.institution.findUnique({ where: { id: institutionId } });
   if (!before) throw new NotFoundError('Institution');
 
@@ -108,6 +121,7 @@ export async function updateInstitutionSettings(
       currency: input.currency.trim().toUpperCase().slice(0, 3) || before.currency,
       certificatePrefix,
       footerText: normaliseOptional(input.footerText),
+      ...(input.domain !== undefined ? { domain } : {}),
     },
     select: { id: true, name: true, primaryColour: true, secondaryColour: true },
   });
@@ -138,4 +152,36 @@ export async function updateInstitutionSettings(
 function normaliseOptional(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+const LOGO_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+
+/** Sets (or, with null, removes) the logo shown on every screen, email and certificate. */
+export async function setInstitutionLogo(principal: Principal, fileId: string | null) {
+  const institutionId = principal.institutionId;
+  if (!institutionId) throw new NotFoundError('Institution');
+  requirePermission(principal, 'settings.manage', { institutionId });
+
+  if (fileId) {
+    const file = await prisma.fileObject.findUnique({
+      where: { id: fileId },
+      select: { institutionId: true, uploadedById: true, mimeType: true, sizeBytes: true },
+    });
+    if (!file || file.institutionId !== institutionId || file.uploadedById !== principal.userId) {
+      throw new AppError('Upload the logo first.', 422, 'no_file');
+    }
+    if (!LOGO_TYPES.has(file.mimeType)) throw new AppError('The logo must be a PNG, JPEG, WebP or GIF image.', 422, 'validation_failed');
+    if (Number(file.sizeBytes) > 2 * 1024 * 1024) throw new AppError('Keep the logo under 2 MB.', 422, 'validation_failed');
+  }
+
+  const before = await prisma.institution.findUnique({ where: { id: institutionId }, select: { logoFileId: true } });
+  await prisma.institution.update({ where: { id: institutionId }, data: { logoFileId: fileId } });
+  await recordAudit(principal, {
+    action: fileId ? 'institution.logo_set' : 'institution.logo_removed',
+    entityType: 'Institution',
+    entityId: institutionId,
+    institutionId,
+    before: { logoFileId: before?.logoFileId ?? null },
+    after: { logoFileId: fileId },
+  });
 }

@@ -7,14 +7,22 @@ import { BrandMark } from '@/components/brand/mark';
 import { SignOutForm } from './sign-out-form';
 import type { NavGroup } from './nav';
 
-export function Sidebar({ groups }: { groups: NavGroup[] }) {
+export function Sidebar({
+  groups,
+  brand,
+  signOutLabel = 'Sign out',
+}: {
+  signOutLabel?: string;
+  groups: NavGroup[];
+  brand?: { logoUrl: string | null; shortName: string; name: string };
+}) {
   const pathname = usePathname();
 
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-white/10 px-4 py-4">
         <Link href="/dashboard" className="block rounded-md">
-          <BrandMark size="sm" showFullName={false} />
+          <BrandMark size="sm" showFullName={false} brand={brand} />
         </Link>
       </div>
 
@@ -52,6 +60,7 @@ export function Sidebar({ groups }: { groups: NavGroup[] }) {
 
       <div className="border-t border-white/10 p-3">
         <SignOutForm
+          label={signOutLabel}
           buttonClassName="flex min-h-11 w-full items-center justify-center rounded-md border border-gold-bright/70 px-3 text-sm font-semibold text-gold-bright hover:bg-white/10"
         />
       </div>

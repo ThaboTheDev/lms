@@ -2,7 +2,7 @@ import 'server-only';
 import { prisma } from '@/lib/db';
 import { AppError, NotFoundError } from '@/lib/errors';
 import { recordAudit } from '@/lib/audit';
-import { can, requirePermission, type Principal } from '@/lib/rbac/authorize';
+import { can, requirePermission, type Principal, requireSameInstitution } from '@/lib/rbac/authorize';
 import { assertCanViewOffering } from './course-builder';
 import { notify } from './notifications';
 
@@ -275,3 +275,26 @@ export async function openReports(principal: Principal) {
     },
   });
 }
+
+/**
+ * Closes a report. "Hide" hides the post as well, which leaves a visible gap in
+ * the thread; "dismiss" keeps it. Either way the report leaves the queue and
+ * the audit log records who decided.
+ */
+export async function resolveReport(principal: Principal, reportId: string, outcome: 'hide' | 'dismiss') {
+  requirePermission(principal, 'forum.moderate');
+  const report = await prisma.forumReport.findUnique({
+    where: { id: reportId },
+    select: { id: true, status: true, post: { select: { id: true, thread: { select: { forum: { select: { institutionId: true } } } } } } },
+  });
+  if (!report) throw new NotFoundError('Report');
+  requireSameInstitution(principal, report.post.thread.forum.institutionId);
+  if (report.status !== 'OPEN') throw new AppError('Somebody has already dealt with that report.', 409, 'already_resolved');
+
+  await prisma.$transaction([
+    prisma.forumReport.update({ where: { id: reportId }, data: { status: outcome === 'hide' ? 'ACTIONED' : 'DISMISSED', reviewedById: principal.userId, reviewedAt: new Date() } }),
+    ...(outcome === 'hide' ? [prisma.forumPost.update({ where: { id: report.post.id }, data: { isHidden: true } })] : []),
+  ]);
+  await recordAudit(principal, { action: `forum.report_${outcome === 'hide' ? 'actioned' : 'dismissed'}`, entityType: 'ForumReport', entityId: reportId, after: { postId: report.post.id } });
+}
+

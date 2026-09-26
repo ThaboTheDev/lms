@@ -21,10 +21,10 @@ audit log and institutional reporting; learning analytics, security hardening,
 POPIA operations and the accessibility pass; and deployment, backup, monitoring
 and the guides.
 
-Read `docs/FIRST-RUN.md` before standing this up anywhere real. It starts with
-the two things this codebase has never been able to do in the environment it was
-written in: generate the Prisma client and run a migration against a real
-database.
+Read `docs/FIRST-RUN.md` before standing this up anywhere real. A fresh
+deployment starts at `/setup`, which creates the institution and its first
+administrator; Administration → Academic setup then walks through everything a
+semester needs, in order.
 
 ## Stack
 
@@ -53,6 +53,10 @@ npm run db:seed                # fictional institution and people
 npm run dev
 ```
 
+Skip `db:seed` to try first-run setup instead: with no users in the database,
+the first visit goes to `/setup`, as it does on a fresh production deployment
+(see "First run" in `docs/DEPLOYMENT.md`).
+
 Open http://localhost:3000. The seeded institution is the Mzuvukile Slabbert
 Radebe Institute. Accounts all use the passphrase printed by the seed script
 (the addresses below are the demo logins; they were not renamed):
@@ -62,6 +66,8 @@ Radebe Institute. Accounts all use the passphrase printed by the seed script
 | super.admin@kopano.example.ac.za | Super administrator |
 | principal@kopano.example.ac.za | Institutional administrator |
 | registrar@kopano.example.ac.za | Registrar |
+| academic@kopano.example.ac.za | Academic administrator (can release results) |
+| coordinator@kopano.example.ac.za | Programme coordinator (can release results) |
 | lecturer@kopano.example.ac.za | Lecturer |
 | finance@kopano.example.ac.za | Finance officer |
 | lerato.mokoena@student.kopano.example.ac.za | Student |
@@ -93,8 +99,8 @@ npm test             # vitest
 npm run db:migrate   # create and apply a migration
 npm run db:studio    # browse the database
 npm run rbac:sync    # push new permissions and system roles to the database
-npm run worker       # background job worker, needed when QUEUE_DRIVER=redis
-npm run atrisk       # rebuild the at-risk list, run nightly from cron
+npm run worker       # background worker and scheduled jobs, needed when QUEUE_DRIVER=redis
+npm run job -- <name>  # run one background job now (atrisk.evaluate, attempts.sweep, invoices.arrears)
 ```
 
 ## Documentation

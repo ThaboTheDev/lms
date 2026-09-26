@@ -15,9 +15,12 @@ const signalTone = { ok: 'active', attention: 'caution', breach: 'danger' } as c
 export default async function QualityPage() {
   const principal = await requirePrincipal();
   const managesQa = can(principal, 'qa.manage');
+  const moderates = can(principal, 'moderation.perform');
 
   const [queue, signals, reviews, documents, programmes] = await Promise.all([
-    moderationQueue(principal),
+    // The moderation queue is for moderators; a QA manager without that
+    // permission still gets reviews, evidence and the compliance signals.
+    moderates ? moderationQueue(principal) : Promise.resolve([]),
     managesQa ? complianceOverview(principal) : Promise.resolve([]),
     managesQa ? listReviews(principal) : Promise.resolve([]),
     managesQa ? listQaDocuments(principal) : Promise.resolve([]),

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { prisma } from '@/lib/db';
 import { requirePrincipal } from '@/lib/auth/current-user';
 import { loadAttemptForLearner } from '@/server/services/submissions';
+import { learnerQuestion } from '@/server/services/attempt-form';
 import { humanFileSize } from '@/lib/storage/keys';
 import { Panel } from '@/components/ui/primitives';
 import { Breadcrumbs } from '@/components/ui/navigation';
@@ -54,6 +55,15 @@ export default async function AttemptPage({
         <p className="mt-1 text-sm text-muted">
           Attempt {submission.attemptNumber} · out of {Number(submission.assessment.maxMark)}
         </p>
+        {deadline && (
+          <p className="mt-1 text-sm">
+            Closes at{' '}
+            <time dateTime={deadline.toISOString()} className="font-medium">
+              {deadline.toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' })}
+            </time>
+            . Submit before then: whatever has not been submitted or saved by that time is lost.
+          </p>
+        )}
       </div>
 
       {isQuiz ? (
@@ -64,16 +74,9 @@ export default async function AttemptPage({
           deadlineIso={deadline?.toISOString() ?? null}
           paper={paper}
           responses={responses as never}
-          questions={questions.map((question) => ({
-            id: question.id,
-            type: question.type,
-            text: ((question.prompt ?? {}) as { text?: string }).text ?? '',
-            options: question.options.map((option) => ({
-              id: option.id,
-              content: option.content,
-              matchKey: option.matchKey,
-            })),
-          }))}
+          // Projected here, on the server: the browser gets what the learner
+          // needs to answer, never what marks the answer.
+          questions={questions.map((question) => learnerQuestion(question, id))}
         />
       ) : (
         <AssignmentSubmission

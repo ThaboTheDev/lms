@@ -12,9 +12,18 @@
  *
  * With no `MALWARE_SCANNER_URL` configured nothing is claimed and nothing is
  * blocked: uploads carry on and are marked skipped.
+ *
+ * Two kinds of scanner:
+ * - `clamd://host:3310` (or tcp://): a ClamAV daemon. The file is read from
+ *   storage and streamed to it; see ./clamd.ts.
+ * - `https://...`: a scanning service that fetches the object itself. It is
+ *   sent `{ storageKey }` and answers `{ clean: true }` or
+ *   `{ infected: true, threat }`.
  */
 import 'server-only';
 import { env } from '@/lib/env';
+import { storage } from './index';
+import { clamdAddress, clamdScan } from './clamd';
 
 export type ScanVerdict = 'CLEAN' | 'INFECTED' | 'SKIPPED' | 'FAILED';
 
@@ -48,6 +57,17 @@ export async function scanFile(storageKey: string): Promise<ScanResult> {
   const scannerUrl = env.MALWARE_SCANNER_URL;
   if (!scannerUrl) {
     return { verdict: 'SKIPPED', detail: 'No scanner is configured.' };
+  }
+
+  const clamd = clamdAddress(scannerUrl);
+  if (clamd) {
+    try {
+      const bytes = await storage.get(storageKey);
+      if (!bytes) return { verdict: 'FAILED', detail: 'The file is not in storage (yet).' };
+      return await clamdScan(clamd.host, clamd.port, bytes, SCAN_TIMEOUT_MS);
+    } catch (error) {
+      return { verdict: 'FAILED', detail: error instanceof Error ? error.message : 'The file could not be read for scanning.' };
+    }
   }
 
   try {

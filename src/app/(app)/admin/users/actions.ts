@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requirePrincipal } from '@/lib/auth/current-user';
 import { AppError } from '@/lib/errors';
 import { emailSchema } from '@/lib/validation/common';
-import { grantRole, inviteUser, revokeRole, setPersonStatus } from '@/server/services/user-admin';
+import { grantRole, inviteUser, revokeRole, setPersonStatus, resendInvitation } from '@/server/services/user-admin';
 import type { FormState } from '@/lib/validation/common';
 
 function refresh(userId?: string) {
@@ -60,11 +60,18 @@ export async function grantRoleAction(_prev: FormState, formData: FormData): Pro
 
   const userId = String(formData.get('userId') ?? '');
   const roleId = String(formData.get('roleId') ?? '');
+  const where = String(formData.get('scope') ?? 'INSTITUTION');
+  const [scopeType, scopeId] = where === 'INSTITUTION' ? ['INSTITUTION', null] : where.split(':');
+  const expires = String(formData.get('expiresAt') ?? '');
 
   if (!userId || !roleId) return { status: 'error', message: 'Choose a role to grant.' };
 
   try {
-    await grantRole(principal, userId, roleId);
+    await grantRole(principal, userId, roleId, {
+      scopeType: scopeType as 'INSTITUTION' | 'PROGRAMME' | 'COURSE',
+      scopeId,
+      expiresAt: expires ? new Date(`${expires}T23:59:59`) : null,
+    });
     refresh(userId);
     return { status: 'success', message: 'Role granted.' };
   } catch (error) {
@@ -106,6 +113,16 @@ export async function setStatusAction(_prev: FormState, formData: FormData): Pro
       status: 'success',
       message: status === 'SUSPENDED' ? 'Account suspended. Their records are untouched.' : 'Account reactivated.',
     };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function resendInvitationAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const principal = await requirePrincipal();
+  try {
+    await resendInvitation(principal, String(formData.get('userId') ?? ''));
+    return { status: 'success', message: 'A new invitation is on its way.' };
   } catch (error) {
     return fail(error);
   }

@@ -2,8 +2,11 @@ import 'server-only';
 import { prisma } from '@/lib/db';
 import { AppError, NotFoundError } from '@/lib/errors';
 import { recordAudit } from '@/lib/audit';
+import { env } from '@/lib/env';
+import { downloadDecision } from '@/lib/storage/scan-policy';
 import { queue } from '@/lib/queue';
-import { requirePermission, requireSameInstitution, type Principal } from '@/lib/rbac/authorize';
+import { can, requirePermission, requireSameInstitution, type Principal } from '@/lib/rbac/authorize';
+import type { PermissionKey } from '@/lib/rbac/permissions';
 import {
   assertKeyOwnedBy,
   assertUploadAllowed,
@@ -95,25 +98,43 @@ export async function assertCanReadFile(principal: Principal, fileId: string) {
       lessonBlocks: {
         select: { lesson: { select: { section: { select: { offeringId: true } } } } },
       },
-      submissionFiles: { select: { submission: { select: { studentId: true } } } },
+      submissionFiles: { select: { submission: { select: { studentId: true, assessment: { select: { offeringId: true } } } } } },
       proofsOfPayment: { select: { studentId: true } },
+      applicationDocs: { select: { id: true } },
+      qaDocuments: { select: { id: true } },
+      messageAttachments: { select: { message: { select: { thread: { select: { participants: { select: { userId: true } } } } } } } },
+      ticketAttachments: { select: { ticket: { select: { requesterId: true, assigneeId: true } } } },
     },
   });
 
   if (!file) throw new NotFoundError('File');
   if (file.institutionId) requireSameInstitution(principal, file.institutionId);
 
-  if (file.scanStatus === 'INFECTED') {
+  const decision = downloadDecision({
+    scanStatus: file.scanStatus,
+    scannerConfigured: Boolean(env.MALWARE_SCANNER_URL),
+    isUploader: file.uploadedById === principal.userId,
+  });
+  if (decision === 'withheld') {
     throw new AppError('This file was withheld by the malware scan.', 403, 'file_withheld');
+  }
+  if (decision === 'scanning') {
+    throw new AppError('This file is still being checked for viruses. Try again in a minute.', 409, 'file_scanning');
   }
 
   if (file.uploadedById === principal.userId) return file;
 
-  // Learning content: anyone enrolled in or teaching the offering may read it.
-  const offeringIds = file.lessonBlocks
-    .map((block) => block.lesson.section.offeringId)
-    .filter(Boolean);
+  const institutionId = file.institutionId ?? '';
+  const allowed = (permission: PermissionKey, courseOfferingId?: string) =>
+    can(principal, permission, { institutionId, ...(courseOfferingId ? { courseOfferingId } : {}) });
 
+  // Each way a file can be attached decides who may read it. A permission that
+  // covers one kind of file never opens another: content.read, which every
+  // learner holds for library material, used to open everyone's submissions
+  // and bank slips as well.
+
+  // Learning content: anyone enrolled in or teaching the offering, or who manages courses.
+  const offeringIds = file.lessonBlocks.map((block) => block.lesson.section.offeringId).filter(Boolean);
   if (offeringIds.length > 0) {
     const reachable = await prisma.courseOffering.count({
       where: {
@@ -121,38 +142,45 @@ export async function assertCanReadFile(principal: Principal, fileId: string) {
         OR: [
           { staff: { some: { userId: principal.userId } } },
           ...(principal.studentId
-            ? [{ enrolments: { some: { studentId: principal.studentId, status: 'ACTIVE' as const } } }]
+            ? [{ enrolments: { some: { studentId: principal.studentId, status: { in: ['ACTIVE' as const, 'COMPLETED' as const] } } } }]
             : []),
         ],
       },
     });
-    if (reachable > 0) return file;
+    if (reachable > 0 || offeringIds.some((id) => allowed('course.manage', id))) return file;
   }
 
-  // A learner's own submission or proof of payment.
-  if (principal.studentId) {
-    const ownsSubmission = file.submissionFiles.some((f) => f.submission.studentId === principal.studentId);
-    const ownsProof = file.proofsOfPayment.some((p) => p.studentId === principal.studentId);
-    if (ownsSubmission || ownsProof) return file;
+  // Library material: content.read, or content.manage for restricted items.
+  if (file.contentAssets.some((asset) => (asset.isRestricted ? allowed('content.manage') : allowed('content.read')))) return file;
+
+  // Submitted work: the learner who submitted it, and staff who read submissions on that course.
+  for (const { submission } of file.submissionFiles) {
+    if (principal.studentId && submission.studentId === principal.studentId) return file;
+    if (allowed('submission.read', submission.assessment.offeringId)) return file;
   }
 
-  // Library assets and staff oversight fall back to the ordinary permissions.
-  const scope = { institutionId: file.institutionId ?? '' };
-  const staffPermissions = [
-    'content.read',
-    'submission.read',
-    'pop.review',
-    'application.read',
-  ] as const;
-
-  for (const permission of staffPermissions) {
-    try {
-      requirePermission(principal, permission, scope);
-      return file;
-    } catch {
-      // try the next one
-    }
+  // Proof of payment: the learner who sent it, and finance.
+  for (const proof of file.proofsOfPayment) {
+    if (principal.studentId && proof.studentId === principal.studentId) return file;
+    if (allowed('pop.review') || allowed('finance.read')) return file;
   }
+
+  // Application documents: admissions.
+  if (file.applicationDocs.length > 0 && allowed('application.read')) return file;
+
+  // Quality assurance evidence: QA and moderators.
+  if (file.qaDocuments.length > 0 && (allowed('qa.manage') || allowed('moderation.perform'))) return file;
+
+  // A message attachment: everyone in the conversation.
+  if (file.messageAttachments.some((row) => row.message.thread.participants.some((entry) => entry.userId === principal.userId))) {
+    return file;
+  }
+
+  // A ticket attachment: the requester, the assignee and the support desk.
+  if (file.ticketAttachments.some((row) => row.ticket.requesterId === principal.userId || row.ticket.assigneeId === principal.userId)) {
+    return file;
+  }
+  if (file.ticketAttachments.length > 0 && allowed('ticket.read')) return file;
 
   throw new AppError('You do not have access to this file.', 403, 'forbidden');
 }

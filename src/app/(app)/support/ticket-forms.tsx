@@ -1,5 +1,6 @@
 'use client';
 
+import { FileUploader } from '@/components/ui/file-uploader';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button, Field, Input, Panel } from '@/components/ui/primitives';
@@ -57,6 +58,7 @@ export function RaiseTicketForm() {
           </Field>
         </div>
 
+        <FileUploader name="fileId" folder="support" label="Attach a screenshot or document (optional)" />
         <Submit idle="Send it" busy="Sending" />
       </form>
     </Panel>
@@ -84,6 +86,7 @@ export function ReplyForm({ ticketId, canNote }: { ticketId: string; canNote: bo
           />
         )}
 
+        <FileUploader name="fileId" folder="support" label="Attach a file (optional)" />
         <Submit idle="Send reply" busy="Sending" />
       </form>
     </Panel>

@@ -1,5 +1,6 @@
 'use client';
 
+import { FileUploader } from '@/components/ui/file-uploader';
 import { useActionState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button, Field, Input } from '@/components/ui/primitives';
@@ -55,6 +56,7 @@ export function NewMessageForm({
         <Textarea id="body" name="body" rows={5} required />
       </Field>
 
+      <FileUploader name="fileId" folder="messages" label="Attach a file (optional)" />
       <Submit label="Send" />
     </form>
   );
@@ -80,6 +82,7 @@ export function ReplyForm({ threadId }: { threadId: string }) {
         <Textarea id="reply-body" name="body" rows={3} required />
       </Field>
 
+      <FileUploader name="fileId" folder="messages" label="Attach a file (optional)" />
       <Submit label="Send reply" />
     </form>
   );

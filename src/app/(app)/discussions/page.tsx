@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { requirePrincipal } from '@/lib/auth/current-user';
+import { can } from '@/lib/rbac/authorize';
 import { listThreads } from '@/server/services/forums';
 import { viewerContext } from '@/server/services/calendar';
 import { EmptyState, Panel, Tag } from '@/components/ui/primitives';
@@ -20,10 +21,15 @@ export default async function DiscussionsPage({
   const params = await searchParams;
   const viewer = await viewerContext(principal);
 
+  // Listed by the same rule that decides access: institution-wide forums for
+  // everybody, a course's forum for its staff and learners, and every forum
+  // for someone who manages courses. Listing more than that sent a registrar
+  // or a finance officer from the sidebar straight into a refusal.
+  const seesAll = can(principal, 'course.manage');
   const forums = await prisma.forum.findMany({
     where: {
       institutionId: principal.institutionId ?? undefined,
-      ...(viewer.seesEverything ? {} : { offeringId: { in: viewer.offeringIds } }),
+      ...(seesAll ? {} : { OR: [{ offeringId: null }, { offeringId: { in: viewer.offeringIds } }] }),
     },
     orderBy: { title: 'asc' },
     select: {
@@ -55,7 +61,15 @@ export default async function DiscussionsPage({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-serif text-2xl font-semibold">Discussions</h1>
-          <p className="mt-1 text-sm text-muted">{forum.title}</p>
+          <p className="mt-1 text-sm text-muted">
+            {forum.title}
+            {can(principal, 'forum.moderate') && (
+              <>
+                {' · '}
+                <Link href="/discussions/reports" className="text-accent underline underline-offset-2">Reported posts</Link>
+              </>
+            )}
+          </p>
         </div>
         {forums.length > 1 && (
           <form className="flex items-end gap-2">

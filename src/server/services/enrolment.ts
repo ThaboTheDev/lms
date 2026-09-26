@@ -161,3 +161,47 @@ export async function registerForCourses(
 
   return created;
 }
+
+/**
+ * Registers a whole programme (or one cohort in it) for a term, learner by
+ * learner through the same plan the single-learner screen uses, so the
+ * prerequisite, capacity and duplicate checks are exactly the same. Learners
+ * who cannot be registered are reported, not silently skipped.
+ */
+export async function registerCohort(
+  principal: Principal,
+  input: { programmeId: string; academicTermId: string; cohortId?: string },
+) {
+  requirePermission(principal, 'enrolment.manage');
+  const enrolments = await prisma.programmeEnrolment.findMany({
+    where: {
+      programmeId: input.programmeId,
+      status: 'ACTIVE',
+      institutionId: principal.institutionId ?? undefined,
+      ...(input.cohortId ? { cohortId: input.cohortId } : {}),
+    },
+    select: { studentId: true, student: { select: { studentNumber: true } } },
+  });
+
+  let registered = 0;
+  let courses = 0;
+  const skipped: { studentNumber: string; reason: string }[] = [];
+  for (const enrolment of enrolments) {
+    try {
+      const plan = await buildRegistrationPlan(principal, enrolment.studentId, input.academicTermId);
+      const offeringIds = plan.lines.filter((line) => line.eligible && !line.alreadyEnrolled && line.offeringId).map((line) => line.offeringId as string);
+      if (offeringIds.length === 0) {
+        const blocked = plan.lines.find((line) => !line.eligible && !line.alreadyEnrolled);
+        skipped.push({ studentNumber: enrolment.student.studentNumber, reason: blocked ? `${blocked.courseCode}: ${blocked.full ? 'full' : blocked.blockedBy?.join(', ') || 'not offered this term'}` : 'already registered for everything open to them' });
+        continue;
+      }
+      await registerForCourses(principal, enrolment.studentId, input.academicTermId, offeringIds);
+      registered += 1;
+      courses += offeringIds.length;
+    } catch (error) {
+      skipped.push({ studentNumber: enrolment.student.studentNumber, reason: error instanceof Error ? error.message : 'could not be registered' });
+    }
+  }
+  return { learners: enrolments.length, registered, courses, skipped };
+}
+

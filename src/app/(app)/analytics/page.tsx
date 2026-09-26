@@ -1,7 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { requirePrincipal } from '@/lib/auth/current-user';
-import { atRiskLearners, programmeAnalytics } from '@/server/services/analytics';
+import { can } from '@/lib/rbac/authorize';
+import { FOLLOW_UP_DAYS, listAtRiskFlags, programmeAnalytics, type StoredFlag } from '@/server/services/analytics';
+import { ActionButton } from '@/components/ui/action-form';
+import { evaluateNow, followUp } from './actions';
 import { MINIMUM_GROUP_SIZE } from '@/server/services/analytics-rules';
 import { EmptyState, Panel, Tag } from '@/components/ui/primitives';
 
@@ -11,10 +14,12 @@ const levelTone = { urgent: 'danger', concern: 'caution', watch: 'neutral', none
 
 export default async function AnalyticsPage() {
   const principal = await requirePrincipal();
-  const [learners, programmes] = await Promise.all([
-    atRiskLearners(principal),
-    programmeAnalytics(principal),
-  ]);
+  const [flags, programmes] = await Promise.all([listAtRiskFlags(principal), programmeAnalytics(principal)]);
+  const learners = flags.open;
+  const canOpenRecord = can(principal, 'student.read');
+  const evaluated = flags.evaluatedAt
+    ? `Evaluated ${flags.evaluatedAt.toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' })}; refreshed every night.`
+    : 'Not evaluated yet. The list is built every night, or now with the button.';
 
   return (
     <div className="space-y-6">
@@ -34,8 +39,11 @@ export default async function AnalyticsPage() {
 
       <Panel
         title="Learners who may need support"
-        description={`${learners.length} flagged, most pressing first`}
+        description={`${learners.length} flagged, most pressing first. ${evaluated}`}
       >
+        <div className="flex justify-end border-b border-line px-4 py-2">
+          <ActionButton action={evaluateNow} hidden={{}} label="Evaluate now" variant="ghost" />
+        </div>
         {learners.length === 0 ? (
           <EmptyState
             title="Nobody is flagged"
@@ -44,41 +52,30 @@ export default async function AnalyticsPage() {
         ) : (
           <ul className="divide-y divide-line">
             {learners.map((learner) => (
-              <li key={learner.studentId} className="px-4 py-4">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <Link
-                      href={`/students/${learner.studentId}`}
-                      className="text-sm font-medium text-accent underline-offset-2 hover:underline"
-                    >
-                      {learner.name}
-                    </Link>
-                    <p className="text-xs tabular-nums text-muted">
-                      {learner.studentNumber}
-                      {learner.programmeCode ? ` · ${learner.programmeCode}` : ''}
-                    </p>
-                  </div>
-                  <Tag tone={levelTone[learner.risk.level]}>
-                    {learner.risk.level === 'urgent'
-                      ? 'speak to them'
-                      : learner.risk.level === 'concern'
-                        ? 'worth a check'
-                        : 'watching'}
-                  </Tag>
-                </div>
-
-                <ul className="mt-2 space-y-1">
-                  {learner.risk.indicators.map((indicator) => (
-                    <li key={indicator.key} className="text-sm">
-                      {indicator.statement}
-                    </li>
-                  ))}
-                </ul>
-              </li>
+              <FlagRow key={learner.id} flag={learner} canOpenRecord={canOpenRecord}>
+                <ActionButton action={followUp} hidden={{ flagId: learner.id }} label="I have followed up" />
+              </FlagRow>
             ))}
           </ul>
         )}
       </Panel>
+
+      {flags.followedUp.length > 0 && (
+        <Panel
+          title="Followed up"
+          description={`In the last ${FOLLOW_UP_DAYS} days. A learner comes back onto the list sooner only if things get worse.`}
+        >
+          <ul className="divide-y divide-line">
+            {flags.followedUp.map((flag) => (
+              <FlagRow key={flag.id} flag={flag} canOpenRecord={canOpenRecord}>
+                <p className="text-xs text-muted">
+                  {flag.acknowledgedBy}, {flag.acknowledgedAt!.toLocaleDateString('en-ZA', { dateStyle: 'medium' })}
+                </p>
+              </FlagRow>
+            ))}
+          </ul>
+        </Panel>
+      )}
 
       <Panel
         title="By programme"
@@ -112,5 +109,49 @@ export default async function AnalyticsPage() {
         </ul>
       </Panel>
     </div>
+  );
+}
+
+function FlagRow({
+  flag,
+  canOpenRecord,
+  children,
+}: {
+  flag: StoredFlag;
+  canOpenRecord: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <li className="px-4 py-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          {canOpenRecord ? (
+            <Link
+              href={`/students/${flag.studentId}`}
+              className="text-sm font-medium text-accent underline-offset-2 hover:underline"
+            >
+              {flag.name}
+            </Link>
+          ) : (
+            <span className="font-medium">{flag.name}</span>
+          )}
+          <p className="text-xs tabular-nums text-muted">
+            {flag.studentNumber}
+            {flag.programmeCode ? ` · ${flag.programmeCode}` : ''}
+          </p>
+        </div>
+        <Tag tone={levelTone[flag.level]}>
+          {flag.level === 'urgent' ? 'speak to them' : flag.level === 'concern' ? 'worth a check' : 'watching'}
+        </Tag>
+      </div>
+      <ul className="mt-2 space-y-1">
+        {flag.indicators.map((indicator) => (
+          <li key={indicator.key} className="text-sm">
+            {indicator.statement}
+          </li>
+        ))}
+      </ul>
+      <div className="mt-2">{children}</div>
+    </li>
   );
 }

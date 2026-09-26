@@ -1,4 +1,5 @@
 import 'server-only';
+import { isSystemPrincipal } from '@/lib/rbac/system';
 import { prisma } from './db';
 import { hashIp } from './crypto';
 import { readClientContext } from './auth/session';
@@ -39,7 +40,8 @@ export async function recordAudit(principal: Principal | null, entry: AuditEntry
     await prisma.auditLog.create({
       data: {
         institutionId: entry.institutionId ?? principal?.institutionId ?? null,
-        actorId: principal?.userId ?? null,
+        // The scheduled system is not a user row; the email says who acted.
+        actorId: principal && !isSystemPrincipal(principal) ? principal.userId : null,
         actorEmail: principal?.email ?? null,
         action: entry.action,
         entityType: entry.entityType,

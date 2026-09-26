@@ -1,10 +1,13 @@
 import type { Metadata } from 'next';
+import { ActionForm } from '@/components/ui/action-form';
+import { changePassword, saveProfile } from './actions';
 import QRCode from 'qrcode';
 import { prisma } from '@/lib/db';
 import { requirePrincipal } from '@/lib/auth/current-user';
 import { generateMfaSecret, mfaUri } from '@/lib/auth/mfa';
 import { Button, Panel, Tag } from '@/components/ui/primitives';
 import { DescriptionList } from '@/components/ui/navigation';
+import { LOCALES } from '@/lib/i18n/messages';
 import { MfaSetup } from './mfa-setup';
 import { signOutEverywhere, turnOffMfa } from './actions';
 
@@ -12,6 +15,10 @@ export const metadata: Metadata = { title: 'Account and security' };
 
 export default async function SecurityPage() {
   const principal = await requirePrincipal();
+  const profile = await prisma.user.findUnique({
+    where: { id: principal.userId },
+    select: { preferredName: true, phone: true, locale: true, digestFrequency: true },
+  });
 
   const [user, sessions] = await Promise.all([
     prisma.user.findUnique({
@@ -70,7 +77,9 @@ export default async function SecurityPage() {
         />
       </Panel>
 
-      {user?.mfaEnabled ? (
+      <MfaSetup secret={secret} qr={qr ?? null} uri={uri ?? null} enabled={Boolean(user?.mfaEnabled)} />
+
+      {user?.mfaEnabled && (
         <Panel title="Two step sign in" description="A code from your phone is asked for at sign in.">
           <div className="space-y-3 px-4 py-4 text-sm">
             <p className="text-muted">
@@ -85,8 +94,6 @@ export default async function SecurityPage() {
             </form>
           </div>
         </Panel>
-      ) : (
-        secret && qr && <MfaSetup secret={secret} qr={qr} uri={uri!} />
       )}
 
       <Panel title="Where you are signed in" description={`${sessions.length} active sessions`}>
@@ -113,6 +120,48 @@ export default async function SecurityPage() {
           </Button>
         </form>
       </Panel>
+
+      <ActionForm
+        title="Change your password"
+        description="Every other session is signed out when it changes."
+        action={changePassword}
+        submitLabel="Change password"
+        columns={3}
+        fields={[
+          { name: 'currentPassword', label: 'Current password', type: 'password', required: true },
+          { name: 'newPassword', label: 'New password', type: 'password', required: true, hint: 'At least 12 characters; a phrase of a few words works well' },
+          { name: 'confirmPassword', label: 'New password again', type: 'password', required: true },
+        ]}
+      />
+
+      <ActionForm
+        title="Your details"
+        action={saveProfile}
+        submitLabel="Save"
+        fields={[
+          { name: 'preferredName', label: 'Preferred name', defaultValue: profile?.preferredName ?? '', hint: 'What people here call you' },
+          { name: 'phone', label: 'Phone', type: 'text', defaultValue: profile?.phone ?? '', hint: 'Used for text messages, if your institution sends them' },
+          {
+            name: 'locale',
+            label: 'Language',
+            type: 'select',
+            defaultValue: profile?.locale ?? '',
+            options: [{ value: '', label: 'The institution’s language' }, ...Object.entries(LOCALES).map(([value, label]) => ({ value, label }))],
+          },
+          {
+            name: 'digestFrequency',
+            label: 'Email about notices',
+            type: 'select',
+            defaultValue: profile?.digestFrequency ?? 'OFF',
+            options: [
+              { value: 'OFF', label: 'As they happen' },
+              { value: 'DAILY', label: 'One summary a day' },
+              { value: 'WEEKLY', label: 'One summary a week' },
+            ],
+            hint: 'Security notices always come straight away',
+          },
+        ]}
+      />
 
       <Panel title="Your information">
         <div className="space-y-3 px-4 py-4 text-sm">

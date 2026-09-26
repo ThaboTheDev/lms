@@ -8,6 +8,7 @@ import { createFee, createInvoice, createPaymentPlan, recordPayment } from '@/se
 import { claimNext, reviewProofOfPayment, submitProofOfPayment } from '@/server/services/proof-of-payment';
 import type { PopStatus } from '@/server/services/pop-workflow';
 import type { FormState } from '@/lib/validation/common';
+import { decideRefund, requestRefund } from '@/server/services/refunds';
 
 function fail(error: unknown): FormState {
   if (error instanceof AppError) return { status: 'error', message: error.message };
@@ -185,4 +186,33 @@ export async function uploadProof(_prev: FormState, formData: FormData): Promise
     status: 'success',
     message: 'Sent for review. Your account is credited once the finance office has checked it.',
   };
+}
+
+export async function requestRefundAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const principal = await requirePrincipal();
+  try {
+    await requestRefund(principal, {
+      paymentId: String(formData.get('paymentId') ?? ''),
+      amount: Number(formData.get('amount') ?? 0),
+      reason: String(formData.get('reason') ?? ''),
+    });
+  } catch (error) {
+    return fail(error);
+  }
+  revalidatePath('/finance');
+  revalidatePath(`/finance/invoices/${String(formData.get('invoiceId') ?? '')}`);
+  return { status: 'success', message: 'Refund requested. A second finance officer has to approve it.' };
+}
+
+export async function decideRefundAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const principal = await requirePrincipal();
+  const decision = String(formData.get('decision') ?? '');
+  if (!['APPROVED', 'DECLINED', 'PROCESSED'].includes(decision)) return { status: 'error', message: 'Choose a decision.' };
+  try {
+    await decideRefund(principal, String(formData.get('refundId') ?? ''), decision as 'APPROVED' | 'DECLINED' | 'PROCESSED');
+  } catch (error) {
+    return fail(error);
+  }
+  revalidatePath('/finance');
+  return { status: 'success', message: decision === 'PROCESSED' ? 'Recorded as paid out.' : decision === 'APPROVED' ? 'Approved.' : 'Declined.' };
 }

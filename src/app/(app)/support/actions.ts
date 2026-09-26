@@ -38,6 +38,7 @@ export async function raiseTicket(_prev: FormState, formData: FormData): Promise
 
   try {
     const ticket = await createTicket(principal, {
+      fileIds: [String(formData.get('fileId') ?? '')].filter(Boolean),
       subject,
       description,
       category: CATEGORIES.includes(category) ? category : 'GENERAL',
@@ -64,7 +65,7 @@ export async function reply(_prev: FormState, formData: FormData): Promise<FormS
   }
 
   try {
-    await replyToTicket(principal, ticketId, body, isInternalNote);
+    await replyToTicket(principal, ticketId, body, isInternalNote, [String(formData.get('fileId') ?? '')].filter(Boolean));
     refresh(ticketId);
     return { status: 'success', message: isInternalNote ? 'Note added.' : 'Reply sent.' };
   } catch (error) {

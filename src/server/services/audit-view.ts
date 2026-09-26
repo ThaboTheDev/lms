@@ -66,6 +66,7 @@ export function describeChanges(before: unknown, after: unknown): FieldChange[] 
 }
 
 const ACTION_PHRASES: Record<string, string> = {
+  'setup.completed': 'completed first-run setup',
   'auth.sign_out': 'signed out',
   'student.created': 'registered a learner',
   'student.contact_updated': 'updated a learner contact detail',

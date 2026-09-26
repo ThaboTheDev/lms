@@ -6,16 +6,32 @@ import { useFormStatus } from 'react-dom';
 import { Button, Field, Input } from '@/components/ui/primitives';
 import { signIn, type LoginState } from './actions';
 
-function SubmitButton() {
+interface LoginLabels {
+  email: string;
+  password: string;
+  signIn: string;
+  signingIn: string;
+  forgot: string;
+}
+
+const ENGLISH: LoginLabels = {
+  email: 'Email address',
+  password: 'Password',
+  signIn: 'Sign in',
+  signingIn: 'Signing in',
+  forgot: 'Forgot your password?',
+};
+
+function SubmitButton({ labels }: { labels: LoginLabels }) {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" className="w-full" disabled={pending}>
-      {pending ? 'Signing in' : 'Sign in'}
+      {pending ? labels.signingIn : labels.signIn}
     </Button>
   );
 }
 
-export function LoginForm({ redirectTo }: { redirectTo?: string }) {
+export function LoginForm({ redirectTo, labels = ENGLISH }: { redirectTo?: string; labels?: LoginLabels }) {
   const [state, formAction] = useActionState<LoginState, FormData>(signIn, {});
 
   return (
@@ -28,7 +44,7 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
 
       <input type="hidden" name="redirectTo" value={redirectTo ?? ''} />
 
-      <Field label="Email address" htmlFor="email" error={state.fieldErrors?.email}>
+      <Field label={labels.email} htmlFor="email" error={state.fieldErrors?.email}>
         <Input
           id="email"
           name="email"
@@ -40,7 +56,7 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
         />
       </Field>
 
-      <Field label="Password" htmlFor="password" error={state.fieldErrors?.password}>
+      <Field label={labels.password} htmlFor="password" error={state.fieldErrors?.password}>
         <Input
           id="password"
           name="password"
@@ -52,10 +68,10 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
         />
       </Field>
 
-      <SubmitButton />
+      <SubmitButton labels={labels} />
 
       <Link href="/forgot-password" className="block text-sm text-accent underline underline-offset-2">
-        Forgot your password?
+        {labels.forgot}
       </Link>
     </form>
   );

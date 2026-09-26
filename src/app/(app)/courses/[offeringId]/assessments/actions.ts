@@ -6,7 +6,7 @@ import { requirePrincipal } from '@/lib/auth/current-user';
 import { AppError } from '@/lib/errors';
 import { assessmentSchema, gradeSchema } from '@/lib/validation/assessment';
 import { toFieldErrors, type FormState } from '@/lib/validation/common';
-import { createAssessment, publishAssessment } from '@/server/services/assessments';
+import { createAssessment, publishAssessment, updateAssessment } from '@/server/services/assessments';
 import { addPool, attachQuestion } from '@/server/services/question-bank';
 import {
   attachSubmissionFile,
@@ -15,6 +15,8 @@ import {
   saveAnswers,
   startAttempt,
   submitAttempt,
+  removeSubmissionFile,
+  saveFormAnswers,
 } from '@/server/services/submissions';
 import { finaliseCourseResults } from '@/server/services/gradebook';
 
@@ -142,7 +144,10 @@ export async function finishAttempt(_prev: FormState, formData: FormData): Promi
   const responses = String(formData.get('responses') ?? '');
 
   try {
-    if (responses) await saveAnswers(principal, submissionId, JSON.parse(responses));
+    // The form's own fields carry the answers, scripts or not. A page rendered
+    // before those fields existed posts them as JSON instead.
+    const { saved } = await saveFormAnswers(principal, submissionId, formData.entries());
+    if (!saved && responses) await saveAnswers(principal, submissionId, JSON.parse(responses));
     await submitAttempt(principal, submissionId);
   } catch (error) {
     return fail(error);
@@ -222,4 +227,47 @@ export async function finaliseResults(_prev: FormState, formData: FormData): Pro
   } catch (error) {
     return fail(error);
   }
+}
+
+/** Edits an assessment's details. Marks and weighting lock once learners have submitted. */
+export async function saveAssessment(_prev: FormState, formData: FormData): Promise<FormState> {
+  const principal = await requirePrincipal();
+  const assessmentId = String(formData.get('assessmentId') ?? '');
+  const parsed = assessmentSchema.safeParse({
+    ...Object.fromEntries(formData),
+    allowLate: formData.get('allowLate') === 'on',
+    shuffleQuestions: formData.get('shuffleQuestions') === 'on',
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: 'Check the highlighted fields.', fieldErrors: toFieldErrors(parsed.error) };
+  }
+  const { offeringId, type: _type, rubricId, gradingSchemeId: _scheme, ...input } = parsed.data;
+  void _type;
+  void _scheme;
+  try {
+    await updateAssessment(principal, assessmentId, {
+      ...input,
+      instructions: input.instructions || null,
+      timeLimitMinutes: input.timeLimitMinutes || null,
+      latePenaltyPct: input.latePenaltyPct ?? null,
+      rubricId: rubricId || null,
+    } as never);
+  } catch (error) {
+    return fail(error);
+  }
+  revalidatePath(`/courses/${offeringId}/assessments/${assessmentId}`);
+  revalidatePath(`/courses/${offeringId}/assessments`);
+  return { status: 'success', message: 'Saved.' };
+}
+
+/** Takes a file off an assignment that has not been submitted yet. */
+export async function removeWork(_prev: FormState, formData: FormData): Promise<FormState> {
+  const principal = await requirePrincipal();
+  try {
+    await removeSubmissionFile(principal, String(formData.get('submissionId') ?? ''), String(formData.get('fileId') ?? ''));
+  } catch (error) {
+    return fail(error);
+  }
+  revalidatePath(`/courses/${String(formData.get('offeringId') ?? '')}/assessments`);
+  return { status: 'success', message: 'Removed.' };
 }

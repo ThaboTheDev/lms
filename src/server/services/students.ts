@@ -1,10 +1,12 @@
 import 'server-only';
+import { sendInvitation } from './outbound';
+import { grantRoleOnce, requireRoleForInstitution } from './role-grants';
 import { prisma } from '@/lib/db';
-import { NotFoundError } from '@/lib/errors';
+import { NotFoundError, AuthorisationError, AppError } from '@/lib/errors';
 import { recordAudit } from '@/lib/audit';
 import { hashPassword } from '@/lib/auth/password';
 import { randomToken } from '@/lib/crypto';
-import { requirePermission, requireSameInstitution, type Principal } from '@/lib/rbac/authorize';
+import { requirePermission, requireSameInstitution, type Principal, can } from '@/lib/rbac/authorize';
 import { projectStudent, type StudentView } from './student-view';
 import { allocateStudentNumber } from './student-numbers';
 import type { CreateStudentInput } from '@/lib/validation/student';
@@ -55,7 +57,8 @@ export async function listStudents(
   filters: StudentListFilters,
   paging: { skip: number; perPage: number },
 ) {
-  requirePermission(principal, 'student.read');
+  // The register is institution-wide: a grant for one course does not open it.
+  requirePermission(principal, 'student.read', { institutionId: principal.institutionId ?? '' });
 
   const where = {
     institutionId: principal.institutionId ?? undefined,
@@ -166,14 +169,23 @@ export async function getStudent(principal: Principal, studentId: string): Promi
   if (!row) throw new NotFoundError('Student');
 
   const isSelf = principal.studentId === studentId;
+  let scope: { institutionId: string; courseOfferingId?: string } = { institutionId: row.institutionId };
   if (!isSelf) {
     requireSameInstitution(principal, row.institutionId);
-    requirePermission(principal, 'student.read', { institutionId: row.institutionId });
+    if (!can(principal, 'student.read', scope)) {
+      // Teaching staff whose role is granted for a course may open the profile
+      // of a learner on that course, and nobody else's.
+      const shared = await prisma.courseEnrolment.findFirst({
+        where: { studentId: row.id, offering: { staff: { some: { userId: principal.userId } } } },
+        select: { offeringId: true },
+      });
+      const courseScope = shared ? { institutionId: row.institutionId, courseOfferingId: shared.offeringId } : null;
+      if (!courseScope || !can(principal, 'student.read', courseScope)) throw new AuthorisationError();
+      scope = courseScope;
+    }
   }
 
-  const student = projectStudent(principal, flatten(row as never), {
-    institutionId: row.institutionId,
-  });
+  const student = projectStudent(principal, flatten(row as never), scope);
 
   // Marks are only visible to the learner once the offering has released them.
   const courseEnrolments = (row.courseEnrolments as never as Record<string, unknown>[]).map((enrolment) =>
@@ -196,6 +208,11 @@ export async function createStudent(principal: Principal, input: CreateStudentIn
   const institutionId = principal.institutionId;
   if (!institutionId) throw new NotFoundError('Institution');
 
+  const taken = await prisma.user.findUnique({ where: { email: input.email.trim().toLowerCase() }, select: { id: true } });
+  if (taken) {
+    throw new AppError('Somebody already uses that email address.', 409, 'duplicate_email', { email: 'Somebody already uses that email address.' });
+  }
+
   const studentNumber = await allocateStudentNumber(institutionId);
   const placeholderPassword = await hashPassword(randomToken(24));
 
@@ -213,15 +230,8 @@ export async function createStudent(principal: Principal, input: CreateStudentIn
       },
     });
 
-    const studentRole = await tx.role.findUnique({
-      where: { institutionId_key: { institutionId, key: 'STUDENT' } },
-      select: { id: true },
-    });
-    if (studentRole) {
-      await tx.userRole.create({
-        data: { userId: user.id, roleId: studentRole.id, scopeType: 'INSTITUTION', institutionId },
-      });
-    }
+    const studentRole = await requireRoleForInstitution(tx, institutionId, 'STUDENT');
+    await grantRoleOnce(tx, { userId: user.id, roleId: studentRole.id, institutionId, grantedById: principal.userId });
 
     const profile = await tx.studentProfile.create({
       data: {
@@ -267,7 +277,7 @@ export async function createStudent(principal: Principal, input: CreateStudentIn
     after: { studentNumber, programmeId: input.programmeId },
   });
 
-  // TODO(phase-6): queue the invitation email so the learner can set a password.
+  await sendInvitation(student.userId, principal.displayName);
   return student;
 }
 
