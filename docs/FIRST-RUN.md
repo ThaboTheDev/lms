@@ -19,16 +19,28 @@ What to do the first time this is stood up at a real institution, in order.
 ## Standing up the institution
 
 - [ ] Generate a fresh `AUTH_SECRET`.
-- [ ] Create the institution, its branding and its certificate prefix.
-- [ ] Create the first administrator, and turn MFA on for that account before
-      doing anything else.
-- [ ] `npm run rbac:sync`.
-- [ ] Academic year and terms, with the current one marked.
-- [ ] Faculty, department, qualification, programme, courses, curriculum.
-- [ ] Grading scheme bands edited to match the institution's policy. Do this
-      before any result is released.
+- [ ] `npm run rbac:sync` (the compose `migrate` service runs it on every
+      deploy). Setup needs the system roles, so this comes first.
+- [ ] Open `/setup` and create the institution and its first administrator:
+      see "First run" in `docs/DEPLOYMENT.md`. `scripts/bootstrap.ts` does the
+      same from a shell when the site is not reachable yet.
+- [ ] Turn MFA on for that account before doing anything else.
+- [ ] The institution's branding and certificate prefix, under Settings.
+- [ ] Work down **Administration → Academic setup**: it is a checklist that
+      says what is still missing. In order: academic year and terms (mark the
+      current ones), faculties and departments, qualifications, the grading
+      scheme (before any result is released), programmes with their
+      curriculum, courses, then each course scheduled into a term with its
+      teaching team. Assigning a lecturer there gives them the role for that
+      course only.
+- [ ] Invite staff under People and access; register learners under
+      Students (each gets an invitation email to choose a password), or
+      register a whole programme for a term from the programme's page.
 - [ ] Fee structure, if billing runs through the platform.
-- [ ] Email templates checked, and a test message actually received.
+- [ ] Email templates checked (Administration → Email templates), and a test
+      message actually received.
+- [ ] The bucket's CORS rule for uploads (see "Object storage" in
+      `docs/DEPLOYMENT.md`), then one upload tried from a browser.
 
 ## Before the first intake
 

@@ -33,10 +33,13 @@ RUN npx prisma generate && npm run build
 # --- runtime: web -----------------------------------------------------------
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends openssl curl \
+RUN apt-get update && apt-get install -y --no-install-recommends openssl curl tzdata \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --create-home lms
-ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000
+# Local times typed into forms (a due date of 17:00) carry no zone, and every
+# page formats times in the process's zone. In UTC both are two hours out for
+# a South African institution; TZ makes the server read and write local time.
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 TZ=Africa/Johannesburg
 
 COPY --from=build --chown=lms:lms /app/.next/standalone ./
 COPY --from=build --chown=lms:lms /app/.next/static ./.next/static
@@ -59,14 +62,16 @@ CMD ["node", "server.js"]
 # handlers the web process registers.
 FROM node:22-bookworm-slim AS worker
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+RUN apt-get update && apt-get install -y --no-install-recommends openssl tzdata \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --create-home lms
-ENV NODE_ENV=production
+ENV NODE_ENV=production TZ=Africa/Johannesburg
 
 COPY --from=deps --chown=lms:lms /app/node_modules ./node_modules
 COPY --from=build --chown=lms:lms /app/node_modules/.prisma ./node_modules/.prisma
 COPY --chown=lms:lms . .
 
 USER lms
-CMD ["npx", "tsx", "scripts/worker.ts"]
+# --conditions=react-server: the job handlers import `server-only`, which only
+# resolves to its empty module under the react-server condition.
+CMD ["npx", "tsx", "--conditions=react-server", "scripts/worker.ts"]

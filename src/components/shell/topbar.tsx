@@ -37,7 +37,7 @@ export function Topbar({
   }, [menuOpen]);
 
   return (
-    <header className="sticky top-0 z-40 flex h-14 items-center gap-3 overflow-visible border-b border-line bg-surface px-4 shadow-card">
+    <header data-shell="topbar" className="sticky top-0 z-40 flex h-14 items-center gap-3 overflow-visible border-b border-line bg-surface px-4 shadow-card">
       <div className="absolute inset-x-0 bottom-0 h-0.5 bg-gold" aria-hidden />
       <button
         type="button"

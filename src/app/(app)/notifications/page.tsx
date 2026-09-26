@@ -26,6 +26,8 @@ const LABELS: Record<NotificationType, string> = {
   'admission.decision': 'An admission decision is made',
   'payment.status': 'Something changes on your account',
   'certificate.issued': 'A certificate is issued',
+  'ticket.raised': 'New support tickets',
+  'live.scheduled': 'A live class is scheduled',
   'system.notice': 'The institution sends a system notice',
 };
 

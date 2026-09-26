@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { prisma } from '@/lib/db';
 import Link from 'next/link';
 import { requirePrincipal } from '@/lib/auth/current-user';
 import { loadAccount } from '@/server/services/finance';
@@ -23,7 +24,14 @@ export default async function AccountPage() {
     );
   }
 
-  const account = await loadAccount(principal, principal.studentId);
+  const [account, certificates] = await Promise.all([
+    loadAccount(principal, principal.studentId),
+    prisma.certificate.findMany({
+      where: { studentId: principal.studentId, status: { in: ['ISSUED', 'REVOKED'] } },
+      orderBy: { issuedOn: 'desc' },
+      select: { id: true, title: true, number: true, issuedOn: true, status: true, verificationCode: true },
+    }),
+  ]);
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -39,6 +47,26 @@ export default async function AccountPage() {
           </p>
         </div>
       </div>
+
+      {certificates.length > 0 && (
+        <Panel title="Your certificates" description="Download the certificate, or share the verification link with an employer.">
+          <ul className="divide-y divide-line">
+            {certificates.map((certificate) => (
+              <li key={certificate.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+                <span>
+                  <span className="font-medium">{certificate.title}</span>
+                  <span className="block text-xs text-muted">{certificate.number} · issued {certificate.issuedOn.toLocaleDateString('en-ZA', { dateStyle: 'medium' })}{certificate.status === 'REVOKED' ? ' · revoked' : ''}</span>
+                </span>
+                <span className="flex gap-3">
+                  <a href={`/api/v1/certificates/${certificate.id}/pdf`} className="text-accent underline underline-offset-2">Download PDF</a>
+                  <a href={`/verify/${certificate.verificationCode}`} className="text-accent underline underline-offset-2">Verification page</a>
+                  <a href={`/api/v1/badges/${certificate.verificationCode}`} className="text-accent underline underline-offset-2">Open Badge</a>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
 
       <Panel title="Invoices">
         {account.invoices.length === 0 ? (
@@ -84,7 +112,11 @@ export default async function AccountPage() {
                 <td className="px-4 py-2.5 tabular-nums">{formatMoney(toCents(String(payment.amount)))}</td>
                 <td className="px-4 py-2.5 text-muted">{payment.method.toLowerCase().replace(/_/g, ' ')}</td>
                 <td className="px-4 py-2.5 text-muted">{payment.reference ?? '-'}</td>
-                <td className="px-4 py-2.5 tabular-nums text-muted">{payment.receipt?.number ?? 'pending'}</td>
+                <td className="px-4 py-2.5 tabular-nums text-muted">
+                  {payment.receipt ? (
+                    <a href={`/api/v1/receipts/${payment.receipt.id}/pdf`} className="text-accent underline underline-offset-2">{payment.receipt.number}</a>
+                  ) : 'pending'}
+                </td>
               </tr>
             ))}
           </DataTable>

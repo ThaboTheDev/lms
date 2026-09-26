@@ -1,8 +1,8 @@
 import 'server-only';
+import { notifyUsers } from './notifications';
 import { prisma } from '@/lib/db';
 import { AppError, NotFoundError } from '@/lib/errors';
 import { recordAudit } from '@/lib/audit';
-import { queue } from '@/lib/queue';
 import { can, requirePermission, requireSameInstitution, type Principal } from '@/lib/rbac/authorize';
 import { assertCanViewOffering } from './course-builder';
 import {
@@ -197,12 +197,23 @@ export async function submitAttempt(principal: Principal, submissionId: string, 
   });
   if (!assessment) throw new NotFoundError('Assessment');
 
-  const gate = canSubmitAttempt(timing(assessment), {
-    attemptNumber: submission.attemptNumber,
-    status: submission.status,
-    startedAt: submission.startedAt,
-    submittedAt: null,
-  });
+  // A server-initiated submission (the sweep for abandoned timed attempts)
+  // happens after the deadline by definition. It is judged, and recorded, as
+  // at the deadline: the learner's autosaved answers count, nothing later does.
+  const deadline = attemptDeadline(timing(assessment), submission.startedAt);
+  const now = new Date();
+  const effectiveAt = auto && deadline && deadline < now ? deadline : now;
+
+  const gate = canSubmitAttempt(
+    timing(assessment),
+    {
+      attemptNumber: submission.attemptNumber,
+      status: submission.status,
+      startedAt: submission.startedAt,
+      submittedAt: null,
+    },
+    effectiveAt,
+  );
   if (!gate.can) throw new AppError(gate.reason, 409, 'submit_not_allowed');
 
   const stored = (submission.answers ?? {}) as {
@@ -236,7 +247,7 @@ export async function submitAttempt(principal: Principal, submissionId: string, 
   });
 
   const marking = markAttempt(markable, responses);
-  const submittedAt = new Date();
+  const submittedAt = effectiveAt;
 
   const late = applyLatePenalty(marking.autoMark, submittedAt, {
     allowLate: assessment.allowLate,
@@ -472,6 +483,11 @@ export async function releaseResults(principal: Principal, assessmentId: string)
     );
   }
 
+  const learners = (await prisma.submission.findMany({
+    where: { assessmentId, status: 'GRADED' },
+    select: { student: { select: { userId: true } } },
+  })) as { student: { userId: string } }[];
+
   const released = await prisma.$transaction(async (tx) => {
     const count = await tx.submission.updateMany({
       where: { assessmentId, status: 'GRADED' },
@@ -492,7 +508,16 @@ export async function releaseResults(principal: Principal, assessmentId: string)
     after: { title: assessment.title, released },
   });
 
-  await queue.enqueue('notification.fanout', { type: 'grade.released', assessmentId });
+  await notifyUsers(
+    assessment.institutionId,
+    learners.map((row) => row.student.userId),
+    {
+      type: 'grade.released',
+      title: `Results released: ${assessment.title}`,
+      body: 'Your mark and your marker\'s feedback are ready to read.',
+      linkUrl: `/courses/${assessment.offeringId}/assessments/${assessmentId}`,
+    },
+  );
   return { released };
 }
 

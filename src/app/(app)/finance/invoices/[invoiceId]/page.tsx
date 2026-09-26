@@ -1,4 +1,7 @@
 import type { Metadata } from 'next';
+import { ActionForm } from '@/components/ui/action-form';
+import { requestRefundAction } from '../../actions';
+import { PrintButton } from '@/components/ui/print-button';
 import Link from 'next/link';
 import { requirePrincipal } from '@/lib/auth/current-user';
 import { can } from '@/lib/rbac/authorize';
@@ -25,7 +28,15 @@ export default async function InvoicePage({
 
   return (
     <div className="max-w-4xl space-y-6">
-      <Breadcrumbs trail={[{ label: 'Finance', href: '/finance' }, { label: invoice.number }]} />
+      <div className="flex justify-end" data-print="hide"><PrintButton label="Print the invoice" /></div>
+      <Breadcrumbs
+        trail={[
+          can(principal, 'finance.read')
+            ? { label: 'Finance', href: '/finance' }
+            : { label: 'Your account', href: '/account' },
+          { label: invoice.number },
+        ]}
+      />
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -83,7 +94,11 @@ export default async function InvoicePage({
                 <td className="px-4 py-2.5 tabular-nums">{formatMoney(toCents(String(payment.amount)))}</td>
                 <td className="px-4 py-2.5 text-muted">{payment.method.toLowerCase().replace(/_/g, ' ')}</td>
                 <td className="px-4 py-2.5 text-muted">{payment.reference ?? '-'}</td>
-                <td className="px-4 py-2.5 tabular-nums text-muted">{payment.receipt?.number ?? '-'}</td>
+                <td className="px-4 py-2.5 tabular-nums text-muted">
+                  {payment.receipt ? (
+                    <a href={`/api/v1/receipts/${payment.receipt.id}/pdf`} className="text-accent underline underline-offset-2">{payment.receipt.number}</a>
+                  ) : '-'}
+                </td>
               </tr>
             ))}
           </DataTable>
@@ -154,6 +169,29 @@ export default async function InvoicePage({
           />
           {!plan && <PaymentPlanForm studentId={invoice.student.id} invoiceId={invoiceId} />}
         </>
+      )}
+      {canManage && invoice.payments.some((payment) => Number(payment.amount) > 0) && (
+        <ActionForm
+          title="Request a refund"
+          description="A second finance officer approves it before any money goes back."
+          action={requestRefundAction}
+          submitLabel="Request refund"
+          columns={3}
+          fields={[
+            { name: 'invoiceId', label: '', type: 'hidden', defaultValue: invoice.id },
+            {
+              name: 'paymentId',
+              label: 'Payment',
+              type: 'select',
+              required: true,
+              options: invoice.payments
+                .filter((payment) => Number(payment.amount) > 0)
+                .map((payment) => ({ value: payment.id, label: `${payment.receipt?.number ?? 'payment'} · ${formatMoney(toCents(String(payment.amount)))}` })),
+            },
+            { name: 'amount', label: 'Amount', type: 'number', min: 0.01, step: '0.01', required: true },
+            { name: 'reason', label: 'Why', required: true, placeholder: 'Overpaid; learner withdrew before the start date' },
+          ]}
+        />
       )}
     </div>
   );

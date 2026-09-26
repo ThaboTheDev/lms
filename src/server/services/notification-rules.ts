@@ -16,6 +16,8 @@ export type NotificationType =
   | 'admission.decision'
   | 'payment.status'
   | 'certificate.issued'
+  | 'ticket.raised'
+  | 'live.scheduled'
   | 'system.notice';
 
 export type Channel = 'IN_APP' | 'EMAIL' | 'SMS' | 'PUSH';
@@ -45,6 +47,8 @@ export const CHANNEL_DEFAULTS: Record<NotificationType, Channel[]> = {
   'admission.decision': ['IN_APP', 'EMAIL'],
   'payment.status': ['IN_APP', 'EMAIL'],
   'certificate.issued': ['IN_APP', 'EMAIL'],
+  'ticket.raised': ['IN_APP', 'EMAIL'],
+  'live.scheduled': ['IN_APP', 'EMAIL'],
   'system.notice': ['IN_APP', 'EMAIL'],
 };
 

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requirePrincipal } from '@/lib/auth/current-user';
 import { AppError } from '@/lib/errors';
-import { hidePost, moderateThread, reply, reportPost, startThread } from '@/server/services/forums';
+import { hidePost, moderateThread, reply, reportPost, startThread, resolveReport } from '@/server/services/forums';
 import type { FormState } from '@/lib/validation/common';
 
 function fail(error: unknown): FormState {
@@ -82,4 +82,17 @@ export async function report(_prev: FormState, formData: FormData): Promise<Form
     status: 'success',
     message: 'Reported. A moderator will look at it; the post stays up until they do.',
   };
+}
+
+export async function resolveReportAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const principal = await requirePrincipal();
+  const outcome = String(formData.get('outcome') ?? '') === 'hide' ? 'hide' : 'dismiss';
+  try {
+    await resolveReport(principal, String(formData.get('reportId') ?? ''), outcome);
+  } catch (error) {
+    if (error instanceof AppError) return { status: 'error', message: error.message };
+    throw error;
+  }
+  revalidatePath('/discussions/reports');
+  return { status: 'success', message: outcome === 'hide' ? 'Post hidden.' : 'Report dismissed.' };
 }

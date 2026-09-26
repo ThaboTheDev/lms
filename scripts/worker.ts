@@ -8,11 +8,12 @@
  * With QUEUE_DRIVER=memory this process is unnecessary: jobs run in the web
  * process, which is fine for one instance and for development.
  */
-import { Worker } from 'bullmq';
+import { Queue, Worker } from 'bullmq';
 import { getRedis } from '../src/lib/redis';
 import { env } from '../src/lib/env';
 import { getHandler, registeredJobs, type JobName } from '../src/lib/queue';
 import { registerJobHandlers } from '../src/server/jobs';
+import { SCHEDULE, SCHEDULE_TIMEZONE } from '../src/server/jobs/schedule';
 
 registerJobHandlers();
 
@@ -47,6 +48,19 @@ async function main() {
   });
 
   console.log(`[worker] consuming ${workers.length} queues: ${registeredJobs().join(', ')}`);
+
+  // Scheduled work. upsertJobScheduler is idempotent, so every worker can
+  // register the same schedule at boot and Redis keeps exactly one of each.
+  for (const entry of SCHEDULE) {
+    const scheduler = new Queue(entry.name, { connection });
+    await scheduler.upsertJobScheduler(
+      `schedule:${entry.name}`,
+      { pattern: entry.pattern, tz: SCHEDULE_TIMEZONE },
+      { name: entry.name, data: {}, opts: { removeOnComplete: { count: 50 }, removeOnFail: { count: 50 } } },
+    );
+    await scheduler.close();
+    console.log(`[worker] scheduled ${entry.name} (${entry.pattern}): ${entry.description}`);
+  }
 
   const shutdown = async () => {
     console.log('[worker] draining');

@@ -1,7 +1,16 @@
 import type { Metadata } from 'next';
+import { ActionForm } from '@/components/ui/action-form';
+import { saveAssessment } from '../actions';
+
+/** A stored instant as the value a datetime-local input expects, in the server's (the institution's) time zone. */
+function localInput(value: Date | null): string {
+  if (!value) return '';
+  return new Date(value.getTime() - value.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { requirePrincipal } from '@/lib/auth/current-user';
+import { can } from '@/lib/rbac/authorize';
 import { assertCanViewOffering } from '@/server/services/course-builder';
 import { listSubmissions } from '@/server/services/submissions';
 import { canStartAttempt } from '@/server/services/assessment-window';
@@ -24,6 +33,16 @@ export default async function AssessmentPage({
 
   if (viewer === 'staff') {
     const { assessment, submissions, enrolled, canRelease } = await listSubmissions(principal, assessmentId);
+    const editable = can(principal, 'assessment.manage', { institutionId: assessment.institutionId, courseOfferingId: offeringId })
+      ? await prisma.assessment.findUnique({
+          where: { id: assessmentId },
+          select: {
+            title: true, type: true, category: true, instructions: true, maxMark: true, passMark: true, weight: true,
+            opensAt: true, dueAt: true, closesAt: true, timeLimitMinutes: true, maxAttempts: true,
+            allowLate: true, latePenaltyPct: true, shuffleQuestions: true,
+          },
+        })
+      : null;
 
     const [questions, pools, banks] = await Promise.all([
       prisma.assessmentQuestion.findMany({
@@ -105,6 +124,37 @@ export default async function AssessmentPage({
           awaiting={awaiting}
           released={Boolean(assessment.releaseResultsAt)}
         />
+
+        {editable && (
+          <details className="rounded-md border border-line bg-surface">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-accent">Edit the details</summary>
+            <ActionForm
+              bare
+              action={saveAssessment}
+              submitLabel="Save changes"
+              columns={3}
+              fields={[
+                { name: 'assessmentId', label: '', type: 'hidden', defaultValue: assessmentId },
+                { name: 'offeringId', label: '', type: 'hidden', defaultValue: offeringId },
+                { name: 'type', label: '', type: 'hidden', defaultValue: editable.type },
+                { name: 'title', label: 'Title', required: true, defaultValue: editable.title, wide: true },
+                { name: 'category', label: 'Category', type: 'select', defaultValue: editable.category, options: ['SUMMATIVE', 'FORMATIVE', 'DIAGNOSTIC'].map((value) => ({ value, label: value.charAt(0) + value.slice(1).toLowerCase() })) },
+                { name: 'maxMark', label: 'Out of', type: 'number', min: 1, step: '0.5', defaultValue: Number(editable.maxMark), hint: 'Locked once work is submitted' },
+                { name: 'passMark', label: 'Pass mark', type: 'number', min: 0, step: '0.5', defaultValue: Number(editable.passMark) },
+                { name: 'weight', label: 'Weighting %', type: 'number', min: 0, max: 100, step: '0.5', defaultValue: Number(editable.weight), hint: 'Locked once work is submitted' },
+                { name: 'opensAt', label: 'Opens', type: 'datetime-local', defaultValue: localInput(editable.opensAt) },
+                { name: 'dueAt', label: 'Due', type: 'datetime-local', defaultValue: localInput(editable.dueAt) },
+                { name: 'closesAt', label: 'Closes', type: 'datetime-local', defaultValue: localInput(editable.closesAt) },
+                { name: 'timeLimitMinutes', label: 'Time limit (minutes)', type: 'number', min: 0, max: 600, defaultValue: editable.timeLimitMinutes ?? '', hint: 'Empty for none' },
+                { name: 'maxAttempts', label: 'Attempts allowed', type: 'number', min: 1, max: 10, defaultValue: editable.maxAttempts },
+                { name: 'latePenaltyPct', label: 'Late penalty % per day', type: 'number', min: 0, max: 100, defaultValue: editable.latePenaltyPct === null ? '' : Number(editable.latePenaltyPct) },
+                { name: 'instructions', label: 'Instructions', type: 'textarea', rows: 4, defaultValue: editable.instructions ?? '' },
+                { name: 'allowLate', label: 'Accept late work', type: 'checkbox', defaultValue: editable.allowLate },
+                { name: 'shuffleQuestions', label: 'Shuffle questions', type: 'checkbox', defaultValue: editable.shuffleQuestions },
+              ]}
+            />
+          </details>
+        )}
 
         <Panel title="Setup">
           <DescriptionList

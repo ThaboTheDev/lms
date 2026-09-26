@@ -126,10 +126,13 @@ export function CheckInForm({
   sessionId,
   offeringId,
   status,
+  code,
 }: {
   sessionId: string;
   offeringId: string;
   status: string;
+  /** Filled in when the learner arrives by scanning the session's QR code. */
+  code?: string;
 }) {
   const [state, action] = useActionState<FormState, FormData>(checkIn, {});
 
@@ -148,7 +151,7 @@ export function CheckInForm({
       <input type="hidden" name="offeringId" value={offeringId} />
 
       <Field label="Check-in code" htmlFor="code" hint="Your lecturer reads it out at the start">
-        <Input id="code" name="code" required autoComplete="off" className="w-40 font-serif text-lg tracking-widest" />
+        <Input id="code" name="code" required autoComplete="off" defaultValue={code} className="w-40 font-serif text-lg tracking-widest" />
       </Field>
 
       <Submit label="Check in" />

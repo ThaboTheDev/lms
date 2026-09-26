@@ -91,6 +91,18 @@ export default async function TicketPage({ params }: { params: Promise<{ ticketI
         )}
       </Panel>
 
+      {ticket.attachments.length > 0 && (
+        <Panel title="Attachments">
+          <ul className="divide-y divide-line">
+            {ticket.attachments.map((attachment) => (
+              <li key={attachment.fileId} className="px-4 py-2.5 text-sm">
+                <a href={`/api/v1/files/${attachment.fileId}/download`} className="text-accent underline underline-offset-2">{attachment.file.originalName}</a>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
       {ticket.status !== 'CLOSED' && <ReplyForm ticketId={ticket.id} canNote={seesQueue} />}
 
       {seesQueue && (

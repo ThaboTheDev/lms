@@ -38,6 +38,10 @@ export default async function CertificatePage({
             {certificate.student.user.firstName} {certificate.student.user.lastName} ·{' '}
             {certificate.number}
           </p>
+          <p className="mt-2 flex flex-wrap gap-3 text-sm">
+            <a href={`/api/v1/certificates/${certificateId}/pdf`} className="text-accent underline underline-offset-2">Download PDF</a>
+            <a href={`/api/v1/badges/${certificate.verificationCode}`} className="text-accent underline underline-offset-2">Open Badge assertion</a>
+          </p>
         </div>
         <Tag tone={certificate.status === 'REVOKED' ? 'danger' : 'active'}>
           {certificate.status.toLowerCase()}

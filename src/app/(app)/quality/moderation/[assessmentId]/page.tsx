@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { requirePrincipal } from '@/lib/auth/current-user';
+import { can } from '@/lib/rbac/authorize';
 import { openModeration } from '@/server/services/moderation';
 import { toPercent } from '@/server/services/grading-rules';
 import { DataTable, Panel, Tag } from '@/components/ui/primitives';
@@ -133,14 +134,18 @@ export default async function ModerationPage({
                 { term: 'Pass mark', value: `${Number(assessment.passMark)} (${toPercent(Number(assessment.passMark), maxMark)}%)` },
                 {
                   term: 'Marking',
-                  value: (
-                    <Link
-                      href={`/courses/${assessment.offering.id}/assessments/${assessmentId}`}
-                      className="text-accent underline underline-offset-2"
-                    >
-                      Open the assessment
-                    </Link>
-                  ),
+                  value:
+                    can(principal, 'course.manage', { institutionId: assessment.institutionId, courseOfferingId: assessment.offering.id }) &&
+                    can(principal, 'submission.read', { institutionId: assessment.institutionId, courseOfferingId: assessment.offering.id }) ? (
+                      <Link
+                        href={`/courses/${assessment.offering.id}/assessments/${assessmentId}`}
+                        className="text-accent underline underline-offset-2"
+                      >
+                        Open the assessment
+                      </Link>
+                    ) : (
+                      'Marked by the course team; the sample below is what you moderate'
+                    ),
                 },
               ]}
             />

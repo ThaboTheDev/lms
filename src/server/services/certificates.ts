@@ -1,9 +1,9 @@
 import 'server-only';
+import { notify } from './notifications';
 import { randomBytes } from 'node:crypto';
 import { prisma } from '@/lib/db';
 import { AppError, NotFoundError } from '@/lib/errors';
 import { recordAudit } from '@/lib/audit';
-import { queue } from '@/lib/queue';
 import { hashIp } from '@/lib/crypto';
 import { env } from '@/lib/env';
 import { requirePermission, requireSameInstitution, type Principal } from '@/lib/rbac/authorize';
@@ -68,7 +68,7 @@ export async function issueCertificate(principal: Principal, input: IssueInput) 
       id: true,
       institutionId: true,
       studentNumber: true,
-      user: { select: { firstName: true, lastName: true } },
+      user: { select: { id: true, firstName: true, lastName: true } },
       institution: { select: { certificatePrefix: true, name: true } },
     },
   });
@@ -184,7 +184,14 @@ export async function issueCertificate(principal: Principal, input: IssueInput) 
     },
   });
 
-  await queue.enqueue('certificate.generate', { certificateId: certificate.id });
+  await notify({
+    userId: student.user.id,
+    institutionId: student.institutionId,
+    type: 'certificate.issued',
+    title: `Certificate issued: ${certificate.title}`,
+    body: `Certificate ${certificate.number}. Anyone can confirm it at the verification page with code ${certificate.verificationCode}.`,
+    linkUrl: `/verify/${certificate.verificationCode}`,
+  });
   return certificate;
 }
 

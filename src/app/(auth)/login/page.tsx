@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getCurrentPrincipal } from '@/lib/auth/current-user';
+import { prisma } from '@/lib/db';
 import { BRAND } from '@/lib/brand';
+import { setupPending } from '@/server/services/setup';
 import { BrandMark } from '@/components/brand/mark';
 import { LoginForm } from './login-form';
 
@@ -17,18 +19,24 @@ const points = [
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; reset?: string }>;
+  searchParams: Promise<{ next?: string; reset?: string; setup?: string }>;
 }) {
   let principal = null;
+  let needsSetup = false;
   try {
     principal = await getCurrentPrincipal();
+    // A fresh deployment has nobody who could sign in. Send the first visitor
+    // to setup rather than to a form no account can pass.
+    if (!principal) needsSetup = await setupPending(prisma);
   } catch {
     // The session store being unreachable must not hide the sign-in screen.
     principal = null;
+    needsSetup = false;
   }
   if (principal) redirect('/dashboard');
+  if (needsSetup) redirect('/setup');
 
-  const { next, reset } = await searchParams;
+  const { next, reset, setup } = await searchParams;
 
   return (
     <main className="grid min-h-dvh lg:grid-cols-[1.05fr_1fr]">
@@ -72,6 +80,15 @@ export default async function LoginPage({
                 className="mt-4 border-l-2 border-gold-ink bg-gold/10 px-3 py-2 text-sm text-gold-ink"
               >
                 Your password has been set. Sign in with it.
+              </p>
+            )}
+            {setup === 'done' && (
+              <p
+                role="status"
+                className="mt-4 border-l-2 border-gold-ink bg-gold/10 px-3 py-2 text-sm text-gold-ink"
+              >
+                Setup had already been completed, so nothing from that form was saved. Sign in with
+                the administrator account that was created.
               </p>
             )}
             <LoginForm redirectTo={next} />

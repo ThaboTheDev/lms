@@ -65,7 +65,7 @@ export default async function StudentsPage({
           <h1 className="font-serif text-2xl font-semibold">Students</h1>
           <p className="mt-1 text-sm text-muted">
             {total.toLocaleString('en-ZA')} {total === 1 ? 'learner' : 'learners'} on record.
-          </p>
+          {' '}<a href="/api/v1/reports/students" download className="text-accent underline underline-offset-2">Download the register (CSV)</a></p>
         </div>
         {can(principal, 'student.manage') && (
           <Link href="/students/new">

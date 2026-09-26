@@ -65,6 +65,21 @@ export default async function ReportsPage({
         <div>
           <h1 className="font-serif text-2xl font-semibold">Reports</h1>
           <p className="mt-1 text-sm text-muted">Headcount as at today, drawn from live enrolment records.</p>
+          <p className="mt-1 text-sm" data-print="hide">
+            Download as CSV:{' '}
+            {[
+              ['summary', 'summary'],
+              ['headcount', 'headcount'],
+              ['cohorts', 'cohorts'],
+              ['admissions', 'admissions'],
+              ['distribution', 'mark distribution'],
+            ].map(([report, label], index) => (
+              <span key={report}>
+                {index > 0 ? ' · ' : ''}
+                <a href={`/api/v1/reports/${report}?year=${selected}`} className="text-accent underline underline-offset-2">{label}</a>
+              </span>
+            ))}
+          </p>
         </div>
         <form className="flex items-end gap-2">
           <div>

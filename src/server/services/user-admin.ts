@@ -1,13 +1,11 @@
 import 'server-only';
+import { sendInvitation } from './outbound';
 import { prisma } from '@/lib/db';
-import { env } from '@/lib/env';
-import { AppError, NotFoundError } from '@/lib/errors';
+import { AppError, NotFoundError, AuthorisationError } from '@/lib/errors';
 import { recordAudit } from '@/lib/audit';
 import { hashPassword } from '@/lib/auth/password';
 import { randomToken } from '@/lib/crypto';
-import { issueToken } from '@/lib/auth/tokens';
-import { mailer, wrapEmail, escapeHtml } from '@/lib/mail';
-import { requirePermission, requireSameInstitution, type Principal } from '@/lib/rbac/authorize';
+import { requirePermission, requireSameInstitution, type Principal, can } from '@/lib/rbac/authorize';
 
 /**
  * Staff accounts: inviting them, reading one, suspending one, and granting or
@@ -67,6 +65,9 @@ export async function getPerson(principal: Principal, userId: string) {
           id: true,
           roleId: true,
           createdAt: true,
+          scopeType: true,
+          scopeId: true,
+          expiresAt: true,
           role: { select: { key: true, name: true, isSystem: true } },
         },
         orderBy: { createdAt: 'asc' },
@@ -109,12 +110,6 @@ export async function inviteUser(
       })
     : [];
 
-  const [institution] = await Promise.all([
-    prisma.institution.findUnique({
-      where: { id: institutionId },
-      select: { name: true, emailFromName: true, emailFromAddress: true, footerText: true },
-    }),
-  ]);
 
   // A password nobody knows. The account cannot be signed into until the
   // invitation link has been used to set one.
@@ -140,29 +135,7 @@ export async function inviteUser(
     select: { id: true, email: true, firstName: true },
   });
 
-  const { token } = await issueToken(user.id, 'INVITATION');
-  const link = `${env.APP_URL.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(token)}`;
-
-  await mailer.send({
-    to: user.email,
-    subject: `Your ${institution?.name ?? env.APP_NAME} account`,
-    html: wrapEmail(
-      institution?.name ?? env.APP_NAME,
-      'Set up your account',
-      `<p style="margin:0 0 16px;font-size:15px;line-height:1.5">Hello ${escapeHtml(user.firstName)},</p>
-       <p style="margin:0 0 16px;font-size:15px;line-height:1.5">${escapeHtml(
-         principal.displayName,
-       )} has created an account for you. Choose a password and it is ready to use.</p>
-       <p style="margin:0 0 16px"><a href="${escapeHtml(link)}" style="color:#0e5c4a">Choose your password</a></p>
-       <p style="margin:0;font-size:13px;color:#5b6b70">The link expires in seven days and works once.</p>`,
-      institution?.footerText ?? undefined,
-    ),
-    text: `Hello ${user.firstName},\n\n${principal.displayName} has created an account for you. Choose a password here: ${link}\n\nThe link expires in seven days and works once.`,
-    from:
-      institution?.emailFromAddress && institution?.emailFromName
-        ? `${institution.emailFromName} <${institution.emailFromAddress}>`
-        : undefined,
-  });
+  await sendInvitation(user.id, principal.displayName);
 
   await recordAudit(principal, {
     action: 'user.invited',
@@ -208,9 +181,16 @@ export async function setPersonStatus(
   return updated;
 }
 
-export async function grantRole(principal: Principal, userId: string, roleId: string) {
-  requirePermission(principal, 'role.assign');
+export interface GrantOptions {
+  /** Where the role applies. Institution-wide unless a programme or a course delivery is given. */
+  scopeType?: 'INSTITUTION' | 'PROGRAMME' | 'COURSE';
+  scopeId?: string | null;
+  /** An external examiner's access ends when the moderation does. */
+  expiresAt?: Date | null;
+}
 
+export async function grantRole(principal: Principal, userId: string, roleId: string, options: GrantOptions = {}) {
+  requirePermission(principal, 'role.assign');
   const [user, role] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -218,7 +198,6 @@ export async function grantRole(principal: Principal, userId: string, roleId: st
     }),
     prisma.role.findUnique({ where: { id: roleId }, select: { id: true, key: true, name: true, institutionId: true } }),
   ]);
-
   if (!user) throw new NotFoundError('Person');
   if (!role) throw new NotFoundError('Role');
   if (user.institutionId) requireSameInstitution(principal, user.institutionId);
@@ -226,15 +205,33 @@ export async function grantRole(principal: Principal, userId: string, roleId: st
     throw new AppError('That role belongs to another institution.', 403, 'forbidden');
   }
 
-  const existing = await prisma.userRole.findFirst({ where: { userId, roleId }, select: { id: true } });
-  if (existing) throw new AppError('They already hold that role.', 409, 'duplicate_grant');
+  const scopeType = options.scopeType ?? 'INSTITUTION';
+  const scopeId = scopeType === 'INSTITUTION' ? null : options.scopeId || null;
+  let scopeLabel = 'the whole institution';
+  if (scopeType !== 'INSTITUTION') {
+    if (!scopeId) throw new AppError('Choose where the role applies.', 422, 'validation_failed', { scopeId: 'Choose where the role applies.' });
+    const target =
+      scopeType === 'PROGRAMME'
+        ? await prisma.programme.findFirst({ where: { id: scopeId, institutionId: user.institutionId ?? undefined }, select: { code: true } })
+        : await prisma.courseOffering.findFirst({ where: { id: scopeId, institutionId: user.institutionId ?? undefined }, select: { course: { select: { code: true } }, sectionCode: true } });
+    if (!target) throw new AppError('That programme or course is not at this institution.', 422, 'validation_failed', { scopeId: 'Not at this institution.' });
+    scopeLabel = 'code' in target ? target.code : `${target.course.code} ${target.sectionCode}`;
+  }
+  if (options.expiresAt && options.expiresAt <= new Date()) {
+    throw new AppError('The expiry date has to be in the future.', 422, 'validation_failed', { expiresAt: 'Has to be in the future.' });
+  }
+
+  const existing = await prisma.userRole.findFirst({ where: { userId, roleId, scopeType, scopeId }, select: { id: true } });
+  if (existing) throw new AppError('They already hold that role there.', 409, 'duplicate_grant');
 
   const grant = await prisma.userRole.create({
     data: {
       userId,
       roleId,
       institutionId: user.institutionId,
-      scopeType: 'INSTITUTION',
+      scopeType,
+      scopeId,
+      expiresAt: options.expiresAt ?? null,
       grantedById: principal.userId,
     },
     select: { id: true },
@@ -245,10 +242,29 @@ export async function grantRole(principal: Principal, userId: string, roleId: st
     entityType: 'UserRole',
     entityId: grant.id,
     institutionId: user.institutionId,
-    after: { userId, role: role.name, email: user.email },
+    after: { user: user.email, role: role.key, scope: scopeLabel, expiresAt: options.expiresAt?.toISOString() ?? null },
   });
 
   return grant;
+}
+
+/** Sends a fresh invitation link to somebody who has not set a password yet. */
+export async function resendInvitation(principal: Principal, userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, institutionId: true, status: true, email: true, studentProfile: { select: { id: true } } },
+  });
+  if (!user) throw new NotFoundError('Person');
+  if (user.institutionId) requireSameInstitution(principal, user.institutionId);
+  // Staff invitations belong to whoever manages people; a learner's can also
+  // come from the registry that registered them.
+  const scope = { institutionId: user.institutionId ?? '' };
+  if (!(can(principal, 'user.manage', scope) || (user.studentProfile && can(principal, 'student.manage', scope)))) {
+    throw new AuthorisationError();
+  }
+  if (user.status !== 'INVITED') throw new AppError('They have already set a password; they can use "Forgot your password?" if they need a new one.', 409, 'not_invited');
+  await sendInvitation(user.id, principal.displayName);
+  await recordAudit(principal, { action: 'user.invitation_resent', entityType: 'User', entityId: user.id, institutionId: user.institutionId, after: { email: user.email } });
 }
 
 export async function revokeRole(principal: Principal, userId: string, roleId: string) {

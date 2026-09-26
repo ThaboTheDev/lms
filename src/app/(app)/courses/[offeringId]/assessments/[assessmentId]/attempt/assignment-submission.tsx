@@ -6,7 +6,8 @@ import { Button, Field, Panel } from '@/components/ui/primitives';
 import { FormMessage, Textarea } from '@/components/ui/form';
 import { FileUploader } from '@/components/ui/file-uploader';
 import type { FormState } from '@/lib/validation/common';
-import { attachWork, finishAttempt } from '../../actions';
+import { attachWork, finishAttempt, removeWork } from '../../actions';
+import { ActionButton } from '@/components/ui/action-form';
 
 function Submit({ label, variant }: { label: string; variant?: 'primary' | 'secondary' }) {
   const { pending } = useFormStatus();
@@ -49,7 +50,10 @@ export function AssignmentSubmission({
                 <a href={`/api/v1/files/${file.fileId}/download`} className="text-accent underline underline-offset-2">
                   {file.name}
                 </a>
-                <span className="text-xs text-muted">{file.size}</span>
+                <span className="flex items-center gap-3 text-xs text-muted">
+                  {file.size}
+                  <ActionButton action={removeWork} hidden={{ submissionId, fileId: file.fileId, offeringId }} label="Remove" variant="ghost" />
+                </span>
               </li>
             ))}
           </ul>

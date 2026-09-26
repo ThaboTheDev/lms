@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { ActionForm } from '@/components/ui/action-form';
+import { changePassword, saveProfile } from './actions';
 import QRCode from 'qrcode';
 import { prisma } from '@/lib/db';
 import { requirePrincipal } from '@/lib/auth/current-user';
@@ -12,6 +14,7 @@ export const metadata: Metadata = { title: 'Account and security' };
 
 export default async function SecurityPage() {
   const principal = await requirePrincipal();
+  const profile = await prisma.user.findUnique({ where: { id: principal.userId }, select: { preferredName: true, phone: true } });
 
   const [user, sessions] = await Promise.all([
     prisma.user.findUnique({
@@ -70,7 +73,9 @@ export default async function SecurityPage() {
         />
       </Panel>
 
-      {user?.mfaEnabled ? (
+      <MfaSetup secret={secret} qr={qr ?? null} uri={uri ?? null} enabled={Boolean(user?.mfaEnabled)} />
+
+      {user?.mfaEnabled && (
         <Panel title="Two step sign in" description="A code from your phone is asked for at sign in.">
           <div className="space-y-3 px-4 py-4 text-sm">
             <p className="text-muted">
@@ -85,8 +90,6 @@ export default async function SecurityPage() {
             </form>
           </div>
         </Panel>
-      ) : (
-        secret && qr && <MfaSetup secret={secret} qr={qr} uri={uri!} />
       )}
 
       <Panel title="Where you are signed in" description={`${sessions.length} active sessions`}>
@@ -113,6 +116,29 @@ export default async function SecurityPage() {
           </Button>
         </form>
       </Panel>
+
+      <ActionForm
+        title="Change your password"
+        description="Every other session is signed out when it changes."
+        action={changePassword}
+        submitLabel="Change password"
+        columns={3}
+        fields={[
+          { name: 'currentPassword', label: 'Current password', type: 'password', required: true },
+          { name: 'newPassword', label: 'New password', type: 'password', required: true, hint: 'At least 12 characters; a phrase of a few words works well' },
+          { name: 'confirmPassword', label: 'New password again', type: 'password', required: true },
+        ]}
+      />
+
+      <ActionForm
+        title="Your details"
+        action={saveProfile}
+        submitLabel="Save"
+        fields={[
+          { name: 'preferredName', label: 'Preferred name', defaultValue: profile?.preferredName ?? '', hint: 'What people here call you' },
+          { name: 'phone', label: 'Phone', type: 'text', defaultValue: profile?.phone ?? '' },
+        ]}
+      />
 
       <Panel title="Your information">
         <div className="space-y-3 px-4 py-4 text-sm">

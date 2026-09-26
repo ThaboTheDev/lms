@@ -7,6 +7,8 @@ export interface NavItem {
   href: Route;
   /** The item appears only if the user holds at least one of these. */
   permissions?: PermissionKey[];
+  /** Require the permission institution-wide; a grant for one course is not enough. */
+  institutionWide?: boolean;
 }
 
 export interface NavGroup {
@@ -21,7 +23,11 @@ export interface NavGroup {
 export const NAVIGATION: NavGroup[] = [
   {
     label: 'Overview',
-    items: [{ label: 'Dashboard', href: '/dashboard' }],
+    items: [
+      { label: 'Dashboard', href: '/dashboard' },
+      { label: 'Search', href: '/search' },
+      { label: 'Account and security', href: '/security' },
+    ],
   },
   {
     label: 'Learning',
@@ -46,7 +52,7 @@ export const NAVIGATION: NavGroup[] = [
   {
     label: 'Academic administration',
     items: [
-      { label: 'Students', href: '/students', permissions: ['student.read'] },
+      { label: 'Students', href: '/students', permissions: ['student.read'], institutionWide: true },
       { label: 'Applications', href: '/admissions', permissions: ['application.read'] },
       { label: 'Programmes', href: '/programmes', permissions: ['programme.read'] },
       { label: 'Academic records', href: '/records', permissions: ['academic_record.read'] },
@@ -68,11 +74,13 @@ export const NAVIGATION: NavGroup[] = [
   {
     label: 'Administration',
     items: [
+      { label: 'Academic setup', href: '/admin/academic', permissions: ['programme.manage', 'course.manage', 'settings.manage', 'enrolment.manage'] },
       { label: 'People and access', href: '/admin/users', permissions: ['user.read'] },
       { label: 'Roles', href: '/admin/roles', permissions: ['role.read'] },
       { label: 'Audit log', href: '/admin/audit', permissions: ['audit.read'] },
       { label: 'Privacy and retention', href: '/admin/privacy', permissions: ['settings.manage'] },
       { label: 'Settings', href: '/admin/settings', permissions: ['settings.manage'] },
+      { label: 'Email templates', href: '/admin/email-templates', permissions: ['settings.manage'] },
     ],
   },
 ];

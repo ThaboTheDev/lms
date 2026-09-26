@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { requirePrincipal } from '@/lib/auth/current-user';
-import { can, requirePermission } from '@/lib/rbac/authorize';
+import { can, requirePermission, type Principal } from '@/lib/rbac/authorize';
+import { listMyCourses } from '@/server/services/learning';
 import { Button, DataTable, EmptyState, Panel, Tag } from '@/components/ui/primitives';
 
 export const metadata: Metadata = { title: 'Courses' };
@@ -12,10 +13,61 @@ export const metadata: Metadata = { title: 'Courses' };
  * attached to this term; academic administration wants the approved course
  * catalogue. The permission decides which one opens.
  */
+/** A learner's own courses, with how far through each one they are. */
+async function LearnerCourses({ principal }: { principal: Principal }) {
+  const enrolments = await listMyCourses(principal);
+  const current = enrolments.filter((row) => row.status === 'ACTIVE');
+  const finished = enrolments.filter((row) => row.status !== 'ACTIVE');
+
+  const table = (rows: typeof enrolments, caption: string) => (
+    <DataTable caption={caption} head={['Course', 'Term', 'Lecturer', 'Progress']}>
+      {rows.map((row) => (
+        <tr key={row.id} className="border-b border-line last:border-0">
+          <td className="px-4 py-2.5">
+            <Link href={`/courses/${row.offering.id}`} className="font-medium text-accent underline-offset-2 hover:underline">
+              {row.offering.course.code}
+            </Link>
+            <span className="block text-xs text-muted">{row.offering.course.title} · {row.offering.course.credits} credits</span>
+          </td>
+          <td className="px-4 py-2.5 text-muted">{row.offering.academicTerm.name} {row.offering.academicTerm.academicYear.year}</td>
+          <td className="px-4 py-2.5 text-muted">
+            {row.offering.staff[0] ? `${row.offering.staff[0].user.firstName} ${row.offering.staff[0].user.lastName}` : 'To be confirmed'}
+          </td>
+          <td className="px-4 py-2.5 tabular-nums">
+            {row.progress ? `${Math.round(Number(row.progress.percentComplete))}% · ${row.progress.lessonsComplete} of ${row.progress.lessonsTotal} lessons` : 'Not started'}
+          </td>
+        </tr>
+      ))}
+    </DataTable>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="font-serif text-2xl font-semibold">My courses</h1>
+        <p className="mt-1 text-sm text-muted">The courses you are registered for.</p>
+      </div>
+      <Panel title="This term" description={`${current.length} courses`}>
+        {current.length === 0 ? (
+          <EmptyState title="You are not registered for any courses yet" hint="Once the registrar registers you for your courses they appear here." />
+        ) : (
+          table(current, 'Your current courses')
+        )}
+      </Panel>
+      {finished.length > 0 && <Panel title="Completed">{table(finished, 'Courses you have completed')}</Panel>}
+    </div>
+  );
+}
+
 export default async function CoursesPage() {
   const principal = await requirePrincipal();
   requirePermission(principal, 'course.read');
   const institutionId = principal.institutionId ?? undefined;
+
+  // Learners get their own list; the teaching and catalogue views are for staff.
+  if (principal.studentId && !can(principal, 'course.manage') && !can(principal, 'course.teach')) {
+    return <LearnerCourses principal={principal} />;
+  }
 
   const manages = can(principal, 'course.manage');
 
@@ -124,7 +176,11 @@ export default async function CoursesPage() {
             >
               {catalogue.map((course) => (
                 <tr key={course.id} className="border-b border-line last:border-0">
-                  <td className="px-4 py-2.5 font-medium">{course.code}</td>
+                  <td className="px-4 py-2.5 font-medium">
+                    <Link href={`/courses/catalogue/${course.id}`} className="text-accent underline-offset-2 hover:underline">
+                      {course.code}
+                    </Link>
+                  </td>
                   <td className="px-4 py-2.5">{course.title}</td>
                   <td className="px-4 py-2.5 tabular-nums">{course.credits}</td>
                   <td className="px-4 py-2.5 tabular-nums text-muted">{course.nqfLevel ?? '-'}</td>

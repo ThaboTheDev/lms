@@ -38,7 +38,13 @@ export interface ClientContext {
 }
 
 export async function readClientContext(): Promise<ClientContext> {
-  const h = await headers();
+  let h: Awaited<ReturnType<typeof headers>>;
+  try {
+    h = await headers();
+  } catch {
+    // Outside a request (the worker, a script): there is no client to describe.
+    return { ipAddress: null, userAgent: null };
+  }
   const forwarded = h.get('x-forwarded-for');
   return {
     ipAddress: forwarded?.split(',')[0]?.trim() ?? h.get('x-real-ip'),

@@ -1,41 +1,12 @@
 /** @type {import('next').NextConfig} */
 
-// Next bakes headers into the build; changing this endpoint requires a rebuild.
-function storageOrigins() {
-  const raw = process.env.S3_ENDPOINT;
-  if (!raw) return [];
-  try {
-    return [new URL(raw).origin];
-  } catch {
-    return [];
-  }
-}
-const storage = storageOrigins();
-
 /**
- * Content security policy. 'unsafe-inline' on styles is needed because the
- * design system sets custom properties inline for per-institution branding;
- * scripts carry no such exception. Other sources stay locked to the app origin,
- * except for direct uploads and image/media previews at the storage origin.
+ * Security headers that do not change per request. The content security
+ * policy is not here: it carries a per-request nonce, so src/middleware.ts
+ * issues it (see src/lib/security/csp.ts). A static policy here as well would
+ * be enforced alongside that one and block the very scripts the nonce allows.
  */
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-eval'",
-  "style-src 'self' 'unsafe-inline'",
-  ["img-src 'self' data: blob:", ...storage].join(" "),
-  ["media-src 'self' blob:", ...storage].join(" "),
-  "font-src 'self' data:",
-  ["connect-src 'self'", ...storage].join(" "),
-  "frame-ancestors 'none'",
-  "form-action 'self'",
-  "base-uri 'self'",
-  "object-src 'none'",
-  "upgrade-insecure-requests",
-].join("; ");
-
 const securityHeaders = [
-  { key: "Content-Security-Policy", value: contentSecurityPolicy },
-  { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
@@ -52,29 +23,22 @@ const securityHeaders = [
 
 // Production refuses to be framed. That is the right default for a system that
 // holds academic records, but it also stops the app being shown inside a
-// preview pane, so the refusal is applied in production only. Nothing about a
-// deployed build changes.
+// preview pane, so the refusal is applied in production only (the policy's
+// frame-ancestors follows the same rule).
 const isProduction = process.env.NODE_ENV === "production";
-const frameHeaders = isProduction
-  ? [
-      { key: "Content-Security-Policy", value: contentSecurityPolicy },
-      { key: "X-Frame-Options", value: "DENY" },
-    ]
-  : [
-      {
-        key: "Content-Security-Policy",
-        value: contentSecurityPolicy.replace("frame-ancestors 'none'", "frame-ancestors *"),
-      },
-    ];
+const frameHeaders = isProduction ? [{ key: "X-Frame-Options", value: "DENY" }] : [];
 
 const nextConfig = {
   reactStrictMode: true,
   output: "standalone",
   poweredByHeader: false,
+  typedRoutes: true,
   // Development only: the dev server may be opened from a hosted preview origin.
   allowedDevOrigins: ["*.e2b.app", "*.devtunnels.ms", "*.app.github.dev", "localhost", "127.0.0.1"],
   experimental: {
-    typedRoutes: true,
+    // forbidden() and a 403 page: a permission refusal renders as "not allowed"
+    // with status 403 instead of a 500 "could not be loaded".
+    authInterrupts: true,
     serverActions: {
       allowedOrigins: [
         "*.e2b.app",
@@ -89,12 +53,7 @@ const nextConfig = {
     return [
       {
         source: "/:path*",
-        headers: [
-          ...securityHeaders.filter(
-            (header) => header.key !== "Content-Security-Policy" && header.key !== "X-Frame-Options",
-          ),
-          ...frameHeaders,
-        ],
+        headers: [...securityHeaders, ...frameHeaders],
       },
       {
         // Nothing behind authentication should ever be cached by a proxy.

@@ -382,26 +382,26 @@ Phases 6 to 10 turn that into an institutional platform.
 
 ## What has not been done, and should be
 
-All ten phases are implemented. These are the things that need a real machine,
-a real institution or another person, and no amount of care here substitutes for
-them.
+Tested end to end against a production build (`next build` + `next start`,
+Redis worker, real Postgres, real Chrome with the content security policy
+enforced), on a fresh database set up only through the screens and on the
+seeded one. Still to do, roughly in order of value:
 
-1. **`prisma generate` and a real migration.** The sandbox this was built in
-   could not reach the Prisma engine binaries, so the generated client never
-   existed and the type checker has been reading the models as `any`. Expect the
-   first real type check to find a handful of query-shape mistakes. This is the
-   first thing to do, and `docs/FIRST-RUN.md` starts with it.
-2. **`next build`.** Google Fonts was unreachable in the sandbox, so the
-   production build has never run.
-3. **Integration tests against a real database.** The 304 tests cover the pure
-   rules, which is where the logic that matters lives, but the services
-   themselves are currently only checked by the type system.
-4. **A penetration test**, before the first real intake.
-5. **An accessibility walkthrough with somebody who uses assistive technology.**
-   The automated position is documented; it is not the same thing.
-6. **Notification digests wired into fan-out**, before the first announcement to
-   a large audience.
-7. **A caching layer**, if and when a hot path is measured. Not before.
+1. **A penetration test** before the first real intake, and an accessibility
+   walkthrough with somebody who uses assistive technology.
+2. **Integrations that need an account with a provider**: payment gateway,
+   SMS and push, creating meetings through the Zoom/Teams/Meet APIs (live
+   classes take a pasted link today), proctoring, and a ClamAV (or hosted)
+   scanner adapter behind `MALWARE_SCANNER_URL`.
+3. **SCORM and H5P players**; surveys; peer-review allocation (needs a
+   schema change).
+4. **Smaller gaps**: document upload on applications, learning-outcome
+   mapping screens, staff profiles, certificate templates, white-label
+   tenancy by host name (needs a domain column), notification digest
+   batching wired into fan-out.
+5. **Integration tests in CI** against a real database. The pure rules are
+   unit tested; the services and screens have been exercised by hand-run
+   production tests, not by an automated suite in the repository.
 
 ## Deferred by design
 

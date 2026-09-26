@@ -221,3 +221,34 @@ input[type='radio'] {
   padding: 0.5rem 0.75rem;
   border: 1px solid rgb(var(--line));
 }
+
+/*
+ * Print. Certificates, transcripts, invoices and receipts are printed from the
+ * page itself, so the application frame (rail, top bar, skip link) stays off
+ * the paper, the content takes the full width, and colours print as set.
+ */
+@media print {
+  .skip-link,
+  [data-shell='rail'],
+  [data-shell='topbar'],
+  [data-print='hide'] {
+    display: none !important;
+  }
+  html,
+  body {
+    background: #ffffff !important;
+  }
+  main#main {
+    padding: 0 !important;
+  }
+  main#main > div {
+    max-width: none !important;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  a[href]::after {
+    content: none !important;
+  }
+}

@@ -35,13 +35,17 @@ services:
     ports: ['1025:1025', '8025:8025']
 
   app:
-    build: .
+    # The Dockerfile's last stage is the worker; without a target the web
+    # service would build and run that instead of the application.
+    build:
+      context: .
+      target: runner
     depends_on:
       db: { condition: service_healthy }
     environment:
       DATABASE_URL: postgresql://lms:lms@db:5432/lms?schema=public
       REDIS_URL: redis://redis:6379
-      APP_URL: https://qb05tg4c-3000.inc1.devtunnels.ms
+      APP_URL: ${APP_URL:-http://localhost:3000}
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in your environment}
       STORAGE_DRIVER: s3
       S3_ENDPOINT: http://storage:9000

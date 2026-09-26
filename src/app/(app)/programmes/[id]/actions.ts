@@ -1,5 +1,7 @@
 'use server';
 
+import { registerCohort } from '@/server/services/enrolment';
+
 import { revalidatePath } from 'next/cache';
 import { requirePrincipal } from '@/lib/auth/current-user';
 import { AppError } from '@/lib/errors';
@@ -69,4 +71,24 @@ export async function addPrerequisiteRule(_prev: FormState, formData: FormData):
 
   revalidatePath(`/programmes/${programmeId}`);
   return { status: 'success', message: 'The rule has been added.' };
+}
+
+export async function registerCohortAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const principal = await requirePrincipal();
+  const programmeId = String(formData.get('programmeId') ?? '');
+  try {
+    const result = await registerCohort(principal, {
+      programmeId,
+      academicTermId: String(formData.get('academicTermId') ?? ''),
+      cohortId: String(formData.get('cohortId') ?? '') || undefined,
+    });
+    revalidatePath(`/programmes/${programmeId}`);
+    const skipped = result.skipped.length
+      ? ` Not registered: ${result.skipped.slice(0, 5).map((row) => `${row.studentNumber} (${row.reason})`).join('; ')}${result.skipped.length > 5 ? ` and ${result.skipped.length - 5} more` : ''}.`
+      : '';
+    return { status: result.registered > 0 || result.skipped.length === 0 ? 'success' : 'error', message: `${result.registered} of ${result.learners} learners registered for ${result.courses} course places.${skipped}` };
+  } catch (error) {
+    if (error instanceof AppError) return { status: 'error', message: error.message };
+    throw error;
+  }
 }

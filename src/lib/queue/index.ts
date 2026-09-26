@@ -2,10 +2,11 @@ import { env } from '@/lib/env';
 
 export type JobName =
   | 'email.send'
-  | 'certificate.generate'
-  | 'transcript.generate'
+  | 'mail.send'
   | 'analytics.recalculate'
   | 'atrisk.evaluate'
+  | 'attempts.sweep'
+  | 'invoices.arrears'
   | 'retention.sweep'
   | 'file.scan'
   | 'notification.fanout';
@@ -38,6 +39,10 @@ export function registeredJobs(): JobName[] {
 const memoryDriver: QueueDriver = {
   async enqueue(name, payload, options) {
     const run = async () => {
+      // Handlers register when src/server/jobs is imported. A route handler
+      // (file confirm, lesson progress) is bundled apart from the pages that
+      // import it, so load it here, in whichever module graph queued the job.
+      if (!handlers.has(name)) await import('@/server/jobs');
       const handler = handlers.get(name);
       if (!handler) return console.warn(`[queue] no handler registered for ${name}`);
       try {

@@ -30,7 +30,11 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
   const groups = NAVIGATION.map((group) => ({
     ...group,
     items: group.items.filter(
-      (item) => !item.permissions || item.permissions.some((p) => can(principal, p)),
+      (item) =>
+        !item.permissions ||
+        item.permissions.some((p) =>
+          can(principal, p, item.institutionWide ? { institutionId: principal.institutionId ?? '' } : undefined),
+        ),
     ),
   })).filter((group) => group.items.length > 0);
 

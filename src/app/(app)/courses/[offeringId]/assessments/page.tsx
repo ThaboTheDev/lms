@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { requirePrincipal } from '@/lib/auth/current-user';
+import { can } from '@/lib/rbac/authorize';
 import { listCourseAssessments } from '@/server/services/assessments';
 import { describeState } from '@/server/services/assessment-window';
 import { DataTable, EmptyState, Panel, Tag } from '@/components/ui/primitives';
@@ -17,6 +18,12 @@ export default async function CourseAssessmentsPage({
   const principal = await requirePrincipal();
   const { offeringId } = await params;
   const { offering, viewer, assessments, problems } = await listCourseAssessments(principal, offeringId);
+  // Staff who manage the course without marking rights (an institution
+  // administrator, say) can see the plan but not the scripts: no dead links.
+  const readsWork = viewer === 'learner' || can(principal, 'submission.read', {
+    institutionId: offering.institutionId,
+    courseOfferingId: offeringId,
+  });
 
   return (
     <div className="space-y-6">
@@ -35,7 +42,7 @@ export default async function CourseAssessmentsPage({
             {offering.course.code} · {offering.academicTerm.name} {offering.academicTerm.academicYear.year}
           </p>
         </div>
-        {viewer === 'staff' && (
+        {viewer === 'staff' && readsWork && (
           <Link href={`/courses/${offeringId}/gradebook`} className="text-sm text-accent underline underline-offset-2">
             Open the gradebook
           </Link>
@@ -93,12 +100,16 @@ export default async function CourseAssessmentsPage({
               return (
                 <tr key={assessment.id} className="border-b border-line last:border-0">
                   <td className="px-4 py-2.5">
-                    <Link
-                      href={`/courses/${offeringId}/assessments/${assessment.id}`}
-                      className="font-medium text-accent underline-offset-2 hover:underline"
-                    >
-                      {assessment.title}
-                    </Link>
+                    {readsWork ? (
+                      <Link
+                        href={`/courses/${offeringId}/assessments/${assessment.id}`}
+                        className="font-medium text-accent underline-offset-2 hover:underline"
+                      >
+                        {assessment.title}
+                      </Link>
+                    ) : (
+                      <span className="font-medium">{assessment.title}</span>
+                    )}
                     <span className="block text-xs text-muted">
                       {assessment.category.toLowerCase()}
                       {assessment.timeLimitMinutes ? ` · ${assessment.timeLimitMinutes} minutes` : ''}

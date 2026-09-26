@@ -10,10 +10,13 @@ export function PublicFrame({
   children,
   width = 'prose',
   center = false,
+  showApply = true,
 }: {
   children: React.ReactNode;
   width?: 'prose' | 'lg' | 'md';
   center?: boolean;
+  /** Off where there is no institution to apply to yet, such as first-run setup. */
+  showApply?: boolean;
 }) {
   const max = width === 'lg' ? 'max-w-2xl' : width === 'md' ? 'max-w-sm' : 'max-w-prose';
 
@@ -24,9 +27,11 @@ export function PublicFrame({
           <Link href="/login" className="rounded-md">
             <BrandMark size="sm" />
           </Link>
-          <Link href="/apply" className="text-sm font-semibold text-gold-bright hover:underline">
-            Apply
-          </Link>
+          {showApply && (
+            <Link href="/apply" className="text-sm font-semibold text-gold-bright hover:underline">
+              Apply
+            </Link>
+          )}
         </div>
         <div className="h-1 bg-gold" aria-hidden />
       </header>

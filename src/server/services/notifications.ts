@@ -207,6 +207,35 @@ export async function notifyAudience(
   return { recipients: userIds.length };
 }
 
+/**
+ * Notifies an explicit list of people, in bulk: in-app rows now, email through
+ * the queue (which checks each person's preferences before sending).
+ */
+export async function notifyUsers(
+  institutionId: string,
+  userIds: string[],
+  notice: Omit<NotifyInput, 'userId' | 'institutionId'>,
+) {
+  const recipients = [...new Set(userIds.filter(Boolean))];
+  if (recipients.length === 0) return { recipients: 0 };
+
+  await prisma.notification.createMany({
+    data: recipients.map((userId) => ({
+      institutionId,
+      userId,
+      type: notice.type,
+      title: notice.title,
+      body: notice.body ?? null,
+      linkUrl: notice.linkUrl ?? null,
+      channel: 'IN_APP' as const,
+      deliveredAt: new Date(),
+    })),
+  });
+
+  await queue.enqueue('notification.fanout', { institutionId, userIds: recipients, notice });
+  return { recipients: recipients.length };
+}
+
 export async function listNotifications(principal: Principal, options: { unreadOnly?: boolean } = {}) {
   return prisma.notification.findMany({
     where: {

@@ -1,4 +1,7 @@
 import type { Metadata } from 'next';
+import { ActionButton } from '@/components/ui/action-form';
+import { listRefunds } from '@/server/services/refunds';
+import { decideRefundAction } from './actions';
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { requirePrincipal } from '@/lib/auth/current-user';
@@ -29,6 +32,7 @@ export default async function FinancePage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const principal = await requirePrincipal();
+  const refunds = can(principal, 'finance.read') ? await listRefunds(principal) : [];
   const params = await searchParams;
   const { page, perPage, skip } = parsePaging(params, 50);
 
@@ -63,15 +67,20 @@ export default async function FinancePage({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-serif text-2xl font-semibold">Finance</h1>
-          <p className="mt-1 text-sm text-muted">Fees, invoices, payments and what is outstanding.</p>
+          <p className="mt-1 text-sm text-muted">
+            Fees, invoices, payments and what is outstanding.{' '}
+            <a href="/api/v1/reports/debtors" download className="text-accent underline underline-offset-2">Download the debtors list (CSV)</a>
+          </p>
         </div>
         <div className="flex gap-2">
-          <Link href="/finance/proof-of-payment">
-            <Button variant="secondary">
-              Proof of payment
-              {overview.pendingPops > 0 ? ` (${overview.pendingPops})` : ''}
-            </Button>
-          </Link>
+          {can(principal, 'pop.review') && (
+            <Link href="/finance/proof-of-payment">
+              <Button variant="secondary">
+                Proof of payment
+                {overview.pendingPops > 0 ? ` (${overview.pendingPops})` : ''}
+              </Button>
+            </Link>
+          )}
           <Link href="/finance/fees">
             <Button variant="secondary">Fees</Button>
           </Link>
@@ -180,6 +189,32 @@ export default async function FinancePage({
             label: `${student.studentNumber} · ${student.user.lastName}, ${student.user.firstName}`,
           }))}
         />
+      )}
+      {refunds.length > 0 && (
+        <Panel title="Refunds waiting for a decision" description="Requested by one officer, approved by another, then paid out.">
+          <ul className="divide-y divide-line">
+            {refunds.map((refund) => (
+              <li key={refund.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+                <span>
+                  <span className="font-medium">{formatMoney(toCents(String(refund.amount)))}</span> to {refund.student.user.firstName} {refund.student.user.lastName} ({refund.student.studentNumber})
+                  <span className="block text-xs text-muted">{refund.reason}{refund.payment?.invoice ? ` · invoice ${refund.payment.invoice.number}` : ''} · {refund.status.toLowerCase()}</span>
+                </span>
+                {can(principal, 'finance.manage') && (
+                  <span className="flex flex-wrap gap-2">
+                    {refund.status === 'REQUESTED' ? (
+                      <>
+                        <ActionButton action={decideRefundAction} hidden={{ refundId: refund.id, decision: 'APPROVED' }} label="Approve" />
+                        <ActionButton action={decideRefundAction} hidden={{ refundId: refund.id, decision: 'DECLINED' }} label="Decline" variant="ghost" />
+                      </>
+                    ) : (
+                      <ActionButton action={decideRefundAction} hidden={{ refundId: refund.id, decision: 'PROCESSED' }} label="Mark as paid out" />
+                    )}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Panel>
       )}
     </div>
   );

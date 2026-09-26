@@ -1,4 +1,6 @@
 import 'server-only';
+import { claimUploads } from './attachments';
+import { notifyAudience } from './notifications';
 import type { TicketCategory, TicketPriority, TicketStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { AppError, NotFoundError } from '@/lib/errors';
@@ -134,6 +136,7 @@ export async function getTicket(principal: Principal, ticketId: string) {
           author: { select: { firstName: true, lastName: true } },
         },
       },
+      attachments: { select: { fileId: true, file: { select: { originalName: true, sizeBytes: true } } } },
     },
   });
 
@@ -154,6 +157,7 @@ export async function createTicket(
     description: string;
     category: TicketCategory;
     priority: TicketPriority;
+    fileIds?: string[];
   },
 ) {
   requirePermission(principal, 'ticket.submit');
@@ -163,8 +167,10 @@ export async function createTicket(
   const number = await allocateTicketNumber(institutionId);
   const slaDueAt = new Date(Date.now() + RESPONSE_HOURS[input.priority] * 3_600_000);
 
+  const attach = await claimUploads(principal, input.fileIds ?? []);
   const ticket = await prisma.supportTicket.create({
     data: {
+      ...(attach.length ? { attachments: { create: attach.map((fileId) => ({ fileId })) } } : {}),
       institutionId,
       number,
       requesterId: principal.userId,
@@ -185,6 +191,18 @@ export async function createTicket(
     after: { number: ticket.number, category: input.category, priority: input.priority },
   });
 
+  const notice = {
+    type: 'ticket.raised' as const,
+    title: `New ${input.priority.toLowerCase()} priority ticket ${ticket.number}`,
+    body: ticket.subject,
+    linkUrl: `/support/${ticket.id}`,
+  };
+  const reached = await notifyAudience(institutionId, { kind: 'ROLE', roleKey: 'SUPPORT_STAFF' }, notice, { exceptUserId: principal.userId });
+  if (reached.recipients === 0) {
+    // No support desk yet: the institution's administrators hold ticket.manage.
+    await notifyAudience(institutionId, { kind: 'ROLE', roleKey: 'INSTITUTION_ADMIN' }, notice, { exceptUserId: principal.userId });
+  }
+
   return ticket;
 }
 
@@ -197,6 +215,7 @@ export async function replyToTicket(
   ticketId: string,
   body: string,
   isInternalNote = false,
+  fileIds: string[] = [],
 ) {
   const ticket = await prisma.supportTicket.findUnique({
     where: { id: ticketId },
@@ -216,10 +235,14 @@ export async function replyToTicket(
     throw new AppError('This ticket is closed. Open a new one for a new problem.', 409, 'ticket_closed');
   }
 
+  const attach = await claimUploads(principal, fileIds);
   const message = await prisma.ticketMessage.create({
     data: { ticketId: ticket.id, authorId: principal.userId, body, isInternalNote },
     select: { id: true },
   });
+  if (attach.length) {
+    await prisma.ticketAttachment.createMany({ data: attach.map((fileId) => ({ ticketId: ticket.id, fileId })) });
+  }
 
   if (seesQueue && !isInternalNote && ticket.status === 'OPEN') {
     await prisma.supportTicket.update({

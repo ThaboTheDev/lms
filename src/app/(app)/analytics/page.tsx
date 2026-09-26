@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { requirePrincipal } from '@/lib/auth/current-user';
+import { can } from '@/lib/rbac/authorize';
 import { atRiskLearners, programmeAnalytics } from '@/server/services/analytics';
 import { MINIMUM_GROUP_SIZE } from '@/server/services/analytics-rules';
 import { EmptyState, Panel, Tag } from '@/components/ui/primitives';
@@ -47,12 +48,14 @@ export default async function AnalyticsPage() {
               <li key={learner.studentId} className="px-4 py-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <Link
+                    {can(principal, 'student.read') ? (<Link
                       href={`/students/${learner.studentId}`}
                       className="text-sm font-medium text-accent underline-offset-2 hover:underline"
                     >
                       {learner.name}
-                    </Link>
+                    </Link>) : (<span className="font-medium">
+                      {learner.name}
+                    </span>)}
                     <p className="text-xs tabular-nums text-muted">
                       {learner.studentNumber}
                       {learner.programmeCode ? ` · ${learner.programmeCode}` : ''}
